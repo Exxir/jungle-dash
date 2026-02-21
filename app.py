@@ -28,13 +28,30 @@ selected_studio = st.selectbox("Select studio", studios)
 studio_df = df[df["studio"] == selected_studio].copy()
 studio_df["date"] = pd.to_datetime(studio_df["date"])
 
+min_date = studio_df["date"].min().date()
+max_date = studio_df["date"].max().date()
+
+selected_date = st.date_input(
+    "Select date",
+    value=max_date,
+    min_value=min_date,
+    max_value=max_date
+)
+
+selected_ts = pd.Timestamp(selected_date)
+filtered_df = studio_df[studio_df["date"] <= selected_ts]
+
+if filtered_df.empty:
+    st.warning("No data available for the selected date.")
+    st.stop()
+
 # --- MTD Calculation ---
-latest_date = studio_df["date"].max()
+latest_date = filtered_df["date"].max()
 month_start = latest_date.replace(day=1)
 
-mtd_sales = studio_df[
-    (studio_df["date"] >= month_start) &
-    (studio_df["date"] <= latest_date)
+mtd_sales = filtered_df[
+    (filtered_df["date"] >= month_start) &
+    (filtered_df["date"] <= latest_date)
 ]["netsales"].sum()
 
 # --- Layout ---
@@ -48,5 +65,5 @@ with col1:
 
 with col2:
     st.subheader("Last 14 Days")
-    last_14 = studio_df.sort_values("date", ascending=False).head(14)
+    last_14 = filtered_df.sort_values("date", ascending=False).head(14)
     st.dataframe(last_14)
