@@ -1,5 +1,8 @@
-import streamlit as st
+from datetime import date, timedelta
+from typing import Tuple, cast
+
 import pandas as pd
+import streamlit as st
 from sqlalchemy import create_engine, text
 
 st.set_page_config(layout="wide")
@@ -31,39 +34,59 @@ studio_df["date"] = pd.to_datetime(studio_df["date"])
 min_date = studio_df["date"].min().date()
 max_date = studio_df["date"].max().date()
 
-selected_date = st.date_input(
-    "Select date",
-    value=max_date,
+default_start = max(max_date - timedelta(days=13), min_date)
+
+selected_range = st.date_input(
+    "Select date range",
+    value=(default_start, max_date),
     min_value=min_date,
-    max_value=max_date
+    max_value=max_date,
+    help="Choose start/end dates to sum net sales"
 )
 
-selected_ts = pd.Timestamp(selected_date)
-filtered_df = studio_df[studio_df["date"] <= selected_ts]
+range_tuple: Tuple[date, date]
+
+if isinstance(selected_range, tuple):
+    if len(selected_range) >= 2:
+        range_tuple = (selected_range[0], selected_range[1])
+    elif len(selected_range) == 1:
+        range_tuple = (selected_range[0], selected_range[0])
+    else:
+        range_tuple = (max_date, max_date)
+else:
+    range_tuple = (selected_range, selected_range)
+
+start_date, end_date = range_tuple
+
+start_ts = pd.Timestamp(start_date)
+end_ts = pd.Timestamp(end_date)
+
+if start_ts > end_ts:
+    start_ts, end_ts = end_ts, start_ts
+
+filtered_slice = studio_df[
+    (studio_df["date"] >= start_ts) &
+    (studio_df["date"] <= end_ts)
+].copy()
+filtered_df = cast(pd.DataFrame, filtered_slice)
 
 if filtered_df.empty:
-    st.warning("No data available for the selected date.")
+    st.warning("No data available for the selected date range.")
     st.stop()
 
-# --- MTD Calculation ---
-latest_date = filtered_df["date"].max()
-month_start = latest_date.replace(day=1)
-
-mtd_sales = filtered_df[
-    (filtered_df["date"] >= month_start) &
-    (filtered_df["date"] <= latest_date)
-]["netsales"].sum()
+# --- Range Calculation ---
+range_sales = filtered_df["netsales"].sum()
 
 # --- Layout ---
 col1, col2 = st.columns([1, 2])
 
 with col1:
     st.metric(
-        label="MTD net sales",
-        value=f"${mtd_sales:,.0f}"
+        label="Net sales (selected range)",
+        value=f"${range_sales:,.0f}"
     )
 
 with col2:
-    st.subheader("Last 14 Days")
-    last_14 = filtered_df.sort_values("date", ascending=False).head(14)
-    st.dataframe(last_14)
+    st.subheader("Selected Range Details")
+    range_view = filtered_df.sort_values("date", ascending=False)
+    st.dataframe(range_view)
