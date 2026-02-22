@@ -405,7 +405,7 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_current, tab_chart, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy", "Summary"])
+tab_current, tab_chart, tab_visits, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Visits", "Forecast", "Occupancy", "Summary"])
 
 with tab_current:
     st.subheader("Selected Range Details")
@@ -469,6 +469,21 @@ with tab_chart:
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
+
+with tab_visits:
+    selected_visits = filtered_df.copy()
+    selected_visits["total"] = selected_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+    comparison_visits = comparison_df.copy()
+    comparison_visits["total"] = comparison_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+
+    st.subheader("Visits (Selected Range)")
+    st.dataframe(format_table(selected_visits))
+
+    st.subheader("Visits (Comparison Range)")
+    if comparison_visits.empty:
+        st.info("No comparison data available for visits.")
+    else:
+        st.dataframe(format_table(comparison_visits))
 
 with tab_forecast:
     if history_series.empty:
