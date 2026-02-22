@@ -472,9 +472,39 @@ with tab_chart:
 
 with tab_visits:
     selected_visits = filtered_df.copy()
-    selected_visits["total"] = selected_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+    selected_visits["visits"] = selected_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
     comparison_visits = comparison_df.copy()
-    comparison_visits["total"] = comparison_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+    comparison_visits["visits"] = comparison_visits[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+
+    total_visits = selected_visits["visits"].sum()
+    comparison_total_visits = comparison_visits["visits"].sum() if not comparison_visits.empty else 0.0
+    visits_delta = None
+    if comparison_total_visits:
+        visits_delta = ((total_visits - comparison_total_visits) / comparison_total_visits) * 100
+
+    visit_cols = st.columns(2)
+    visit_cols[0].metric("Visits (selected)", f"{total_visits:,.0f}", f"{visits_delta:+.1f}%" if visits_delta is not None else None)
+    visit_cols[1].metric("Visits (comparison)", f"{comparison_total_visits:,.0f}")
+
+    visit_chart_df = pd.concat([
+        selected_visits.assign(series="Selected"),
+        comparison_visits.assign(series="Comparison"),
+    ])
+
+    if visit_chart_df.empty:
+        st.info("No visit data to chart.")
+    else:
+        visit_chart = (
+            alt.Chart(visit_chart_df)
+            .mark_line(point=True)
+            .encode(
+                x="date:T",
+                y="visits:Q",
+                color="series:N",
+                tooltip=["series", "date", "visits"]
+            )
+        )
+        st.altair_chart(visit_chart, use_container_width=True)
 
     st.subheader("Visits (Selected Range)")
     st.dataframe(format_table(selected_visits))
