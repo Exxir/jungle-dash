@@ -114,28 +114,35 @@ if filtered_df.empty:
 range_sales = filtered_df["netsales"].sum()
 
 range_length_days = max((end_date - start_date).days, 0)
-comparison_end_default = clamp_date(start_date - timedelta(days=1), min_date, max_date)
-comparison_start_default = clamp_date(
-    comparison_end_default - timedelta(days=range_length_days),
-    min_date,
-    comparison_end_default
+comparison_last_year = (
+    clamp_date(start_date - timedelta(days=365), min_date, max_date),
+    clamp_date(end_date - timedelta(days=365), min_date, max_date)
 )
 
+if "comparison_range" not in st.session_state:
+    st.session_state["comparison_range"] = comparison_last_year
+
 with comparison_input_col:
+    if st.button("Use same range last year"):
+        st.session_state["comparison_range"] = comparison_last_year
+
     comparison_selection = st.date_input(
         "Comparison date range",
-        value=(comparison_start_default, comparison_end_default),
+        value=st.session_state["comparison_range"],
         min_value=min_date,
         max_value=max_date,
-        help="Pick another range to compare against"
+        help="Pick another range to compare against",
+        key="comparison_range_input"
     )
 
 comparison_tuple = normalize_range(
     comparison_selection,
-    (comparison_start_default, comparison_end_default)
+    st.session_state["comparison_range"]
 )
 comp_start_date = clamp_date(comparison_tuple[0], min_date, max_date)
 comp_end_date = clamp_date(comparison_tuple[1], min_date, max_date)
+
+st.session_state["comparison_range"] = (comp_start_date, comp_end_date)
 
 comp_start_ts = pd.Timestamp(comp_start_date)
 comp_end_ts = pd.Timestamp(comp_end_date)
