@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import List, Optional, Sequence, Tuple, cast
+from typing import Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -49,50 +49,6 @@ def format_table(df: pd.DataFrame) -> pd.DataFrame:
     if "netsales" in view.columns:
         view["netsales"] = view["netsales"].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
     return view
-
-
-def build_netsales_tooltips(current_df: pd.DataFrame, comparison_df: pd.DataFrame) -> List[str]:
-    tips: List[str] = ["" for _ in range(len(current_df))]
-    if comparison_df.empty:
-        return tips
-
-    comp_series = comparison_df.groupby("date")["netsales"].sum().sort_index()
-    comp_index = pd.DatetimeIndex(comp_series.index)
-    if len(comp_index) == 0:
-        return tips
-
-    for idx, (_, row) in enumerate(current_df.iterrows()):
-        raw_date = row.get("date")
-        if raw_date is None or pd.isna(raw_date):
-            continue
-        raw_ts = pd.Timestamp(raw_date)
-        if raw_ts is pd.NaT:
-            continue
-        target_ts = cast(pd.Timestamp, raw_ts)
-        candidate = target_ts - pd.DateOffset(years=1)
-        matched_ts = closest_timestamp(comp_index, candidate)
-        if matched_ts not in comp_series.index:
-            continue
-        comp_value = comp_series.loc[matched_ts]
-        if comp_value == 0 or pd.isna(comp_value):
-            continue
-        pct = ((row.get("netsales", 0) - comp_value) / comp_value) * 100
-        tips[idx] = f"{pct:+.1f}% vs {matched_ts:%m-%d-%y}"
-
-    return tips
-
-
-def render_table(table: pd.DataFrame, column_tooltips: Optional[dict] = None):
-    display_table = table.copy()
-    styled = None
-    if column_tooltips:
-        tooltip_frame = pd.DataFrame("", index=display_table.index, columns=display_table.columns)
-        for column, tips in column_tooltips.items():
-            if column in tooltip_frame.columns:
-                tooltip_frame[column] = [tip or "" for tip in tips]
-        styled = display_table.style.set_tooltips(tooltip_frame)
-
-    st.dataframe(styled if styled is not None else display_table, use_container_width=True)
 
 
 def closest_timestamp(index: pd.DatetimeIndex, candidate: pd.Timestamp) -> pd.Timestamp:
@@ -260,18 +216,14 @@ tab_current, tab_chart, tab_forecast = st.tabs(["Current", "Line Chart", "Foreca
 with tab_current:
     st.subheader("Selected Range Details")
     range_view = filtered_df.sort_values("date", ascending=False)
-    netsales_tooltips = build_netsales_tooltips(range_view, comparison_df)
-    render_table(
-        format_table(range_view),
-        {"netsales": netsales_tooltips}
-    )
+    st.dataframe(format_table(range_view))
 
     st.subheader("Comparison Range Details")
     if comparison_df.empty:
         st.info("No data available for the comparison range.")
     else:
         comparison_view = comparison_df.sort_values("date", ascending=False)
-        render_table(format_table(comparison_view))
+        st.dataframe(format_table(comparison_view))
 
 with tab_chart:
     selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
