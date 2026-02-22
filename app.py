@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Sequence, Tuple, cast
+from typing import Optional, Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -48,7 +48,73 @@ def format_table(df: pd.DataFrame) -> pd.DataFrame:
         view["weekday"] = view["weekday"].fillna("").str[:3]
     if "netsales" in view.columns:
         view["netsales"] = view["netsales"].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
+    if "comparison_pct" in view.columns:
+        view["comparison_pct"] = view["comparison_pct"].apply(
+            lambda x: f"{x:+.1f}%" if pd.notna(x) else ""
+        )
+    if "comparison_date" in view.columns:
+        view["comparison_date"] = pd.to_datetime(view["comparison_date"]).dt.strftime("%m-%d-%y")
     return view
+
+
+def add_comparison_metrics(current_df: pd.DataFrame, comparison_df: pd.DataFrame) -> pd.DataFrame:
+    result = current_df.copy()
+    result["comparison_date"] = pd.NaT
+    result["comparison_pct"] = pd.NA
+
+    if comparison_df.empty:
+        return result
+
+    comp_series = comparison_df.groupby("date")["netsales"].sum().sort_index()
+    comp_index = pd.DatetimeIndex(comp_series.index)
+
+    if len(comp_index) == 0:
+        return result
+
+    for idx, row in result.iterrows():
+        raw_date = row["date"]
+        if raw_date is None:
+            continue
+        target_ts = pd.to_datetime(raw_date)
+        candidate = target_ts - pd.DateOffset(years=1)
+        matched_ts = closest_timestamp(comp_index, candidate)
+        comp_value = float(comp_series.loc[matched_ts]) if matched_ts in comp_series.index else None
+        if comp_value is None or comp_value == 0:
+            pct = pd.NA
+        else:
+            pct = ((row["netsales"] - comp_value) / comp_value) * 100
+        result.at[idx, "comparison_date"] = matched_ts
+        result.at[idx, "comparison_pct"] = pct
+
+    return result
+
+
+def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
+    table = df.copy()
+    if "netsales" in table.columns and "comparison_pct" in table.columns:
+        pct_column = table.pop("comparison_pct")
+        insert_at = list(table.columns).index("netsales") + 1 if "netsales" in table.columns else len(table.columns)
+        table.insert(insert_at, "Δ% vs comparison", pct_column)
+    return table
+
+
+def render_table(table: pd.DataFrame, tooltip_value_col: Optional[str] = None, tooltip_source_col: Optional[str] = None):
+    display_table = table.copy()
+    if (
+        tooltip_value_col and tooltip_source_col and
+        tooltip_value_col in display_table.columns and
+        tooltip_source_col in display_table.columns
+    ):
+        display_table[tooltip_value_col] = [
+            f'<span title="Comparison date: {src}">{val}</span>' if val and src else val
+            for val, src in zip(
+                display_table[tooltip_value_col],
+                display_table[tooltip_source_col]
+            )
+        ]
+        display_table = display_table.drop(columns=[tooltip_source_col])
+
+    st.markdown(display_table.to_html(index=False, escape=False), unsafe_allow_html=True)
 
 
 def closest_timestamp(index: pd.DatetimeIndex, candidate: pd.Timestamp) -> pd.Timestamp:
@@ -216,14 +282,17 @@ tab_current, tab_chart, tab_forecast = st.tabs(["Current", "Line Chart", "Foreca
 with tab_current:
     st.subheader("Selected Range Details")
     range_view = filtered_df.sort_values("date", ascending=False)
-    st.dataframe(format_table(range_view))
+    range_view = add_comparison_metrics(range_view, comparison_df)
+    formatted_range = format_table(range_view)
+    range_display = prepare_display_table(formatted_range)
+    render_table(range_display, "Δ% vs comparison", "comparison_date")
 
     st.subheader("Comparison Range Details")
     if comparison_df.empty:
         st.info("No data available for the comparison range.")
     else:
         comparison_view = comparison_df.sort_values("date", ascending=False)
-        st.dataframe(format_table(comparison_view))
+        render_table(format_table(comparison_view))
 
 with tab_chart:
     selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
@@ -332,4 +401,4 @@ with tab_forecast:
             if forecast_view.empty:
                 st.info("No forecast data for the selected range.")
             else:
-                st.dataframe(format_table(forecast_view))
+                render_table(format_table(forecast_view))
