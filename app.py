@@ -144,7 +144,12 @@ comparison_selection_df = studio_df[
 ]
 comparison_df = pd.DataFrame(comparison_selection_df).copy()
 comparison_sales = comparison_df["netsales"].sum() if not comparison_df.empty else 0.0
-comparison_delta = None if comparison_df.empty else range_sales - comparison_sales
+comparison_delta_pct = None
+if comparison_df.empty or comparison_sales == 0:
+    comparison_delta_pct = None
+else:
+    diff_pct = ((range_sales - comparison_sales) / comparison_sales) * 100
+    comparison_delta_pct = f"{diff_pct:+.1f}%"
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -159,7 +164,7 @@ with col2:
     st.metric(
         label="Comparison net sales",
         value=f"${comparison_sales:,.0f}",
-        delta=None if comparison_delta is None else comparison_delta
+        delta=comparison_delta_pct
     )
 
 st.subheader("Selected Range Details")
