@@ -119,30 +119,21 @@ comparison_last_year = (
     clamp_date(end_date - timedelta(days=365), min_date, max_date)
 )
 
-if "comparison_range" not in st.session_state:
-    st.session_state["comparison_range"] = comparison_last_year
-
 with comparison_input_col:
-    if st.button("Use same range last year"):
-        st.session_state["comparison_range"] = comparison_last_year
-
     comparison_selection = st.date_input(
         "Comparison date range",
-        value=st.session_state["comparison_range"],
+        value=comparison_last_year,
         min_value=min_date,
         max_value=max_date,
-        help="Pick another range to compare against",
-        key="comparison_range_input"
+        help="Pick another range to compare against"
     )
 
 comparison_tuple = normalize_range(
     comparison_selection,
-    st.session_state["comparison_range"]
+    comparison_last_year
 )
 comp_start_date = clamp_date(comparison_tuple[0], min_date, max_date)
 comp_end_date = clamp_date(comparison_tuple[1], min_date, max_date)
-
-st.session_state["comparison_range"] = (comp_start_date, comp_end_date)
 
 comp_start_ts = pd.Timestamp(comp_start_date)
 comp_end_ts = pd.Timestamp(comp_end_date)
