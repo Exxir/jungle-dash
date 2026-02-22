@@ -405,7 +405,7 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_current, tab_chart, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy", "FW Dashboard"])
+tab_current, tab_chart, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy", "Summary"])
 
 with tab_current:
     st.subheader("Selected Range Details")
@@ -685,9 +685,6 @@ with tab_fw_dashboard:
         """,
         unsafe_allow_html=True,
     )
-
-    st.subheader("Jungle FW Dashboard")
-    st.caption(f"MTD ending {end_date:%b %d, %Y}")
 
     studio_fw_df = cast(pd.DataFrame, studio_df.copy())
     date_series = pd.to_datetime(studio_fw_df["date"], errors="coerce")
