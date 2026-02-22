@@ -215,6 +215,8 @@ with tab_chart:
         st.info("Not enough data to render the chart.")
     else:
         weekday_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        legend_order = [selected_series_label, comparison_series_label]
+
         chart = (
             alt.Chart(chart_df)
             .mark_line(point=True)
@@ -225,7 +227,11 @@ with tab_chart:
                     sort=weekday_order
                 ),
                 y=alt.Y("netsales:Q", title="Net sales"),
-                color=alt.Color("series:N", title="Range"),
+                color=alt.Color(
+                    "series:N",
+                    title="Range",
+                    scale=alt.Scale(domain=legend_order)
+                ),
                 tooltip=[
                     alt.Tooltip("series:N", title="Range"),
                     alt.Tooltip("date:T", title="Date"),
