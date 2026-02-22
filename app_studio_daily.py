@@ -142,8 +142,8 @@ range_tuple = normalize_range(selected_range, (default_start, max_date))
 start_date = clamp_date(range_tuple[0], min_date, max_date)
 end_date = clamp_date(range_tuple[1], min_date, max_date)
 
-start_ts = pd.Timestamp(start_date)
-end_ts = pd.Timestamp(end_date)
+start_ts = cast(pd.Timestamp, pd.Timestamp(start_date))
+end_ts = cast(pd.Timestamp, pd.Timestamp(end_date))
 
 if start_ts > end_ts:
     start_ts, end_ts = end_ts, start_ts
@@ -226,7 +226,7 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_current, tab_chart, tab_forecast, tab_occupancy = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy"])
+tab_current, tab_chart, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy", "FW Dashboard"])
 
 with tab_current:
     st.subheader("Selected Range Details")
@@ -398,3 +398,245 @@ with tab_occupancy:
         st.info("No comparison data available to compute occupancy.")
     else:
         st.dataframe(build_occupancy_table(comparison_df))
+
+
+def format_currency(value: Optional[float]) -> str:
+    if value is None:
+        return "—"
+    return f"${value:,.0f}"
+
+
+def format_number(value: Optional[float], decimals: int = 0, suffix: str = "") -> str:
+    if value is None:
+        return "—"
+    return f"{value:,.{decimals}f}{suffix}"
+
+
+def format_percent(value: Optional[float], decimals: int = 0) -> str:
+    if value is None:
+        return "—"
+    return f"{value * 100:.{decimals}f}%"
+
+
+def yoy_ratio(current: Optional[float], previous: Optional[float]) -> Optional[float]:
+    if current is None or previous in (None, 0):
+        return None
+    return current / previous
+
+
+def ratio_badge(ratio: Optional[float]) -> str:
+    if ratio is None:
+        return "<span class=\"fw-secondary\">—</span>"
+    color = "#19c37d" if ratio >= 1 else "#ff4b4b"
+    return f"<span style='color:{color}'>{ratio:.0%}</span>"
+
+
+def render_fw_card(label: str, value: str, comparison_label: str, ratio_html: str) -> str:
+    return f"""
+    <div class='fw-card'>
+        <div class='fw-label'>{label}</div>
+        <div class='fw-value'>{value}</div>
+        <div class='fw-sub'>{comparison_label}</div>
+        <div class='fw-ratio'>{ratio_html}</div>
+    </div>
+    """
+
+
+def render_fw_row(title: str, value: str, subtitle: str, ratio_html: str) -> str:
+    return f"""
+    <div class='fw-row'>
+        <div class='fw-row-title'>{title}</div>
+        <div class='fw-row-value'>{value}</div>
+        <div class='fw-row-sub'>{subtitle}</div>
+        <div class='fw-row-ratio'>{ratio_html}</div>
+    </div>
+    """
+
+
+with tab_fw_dashboard:
+    st.markdown(
+        """
+        <style>
+        .fw-card, .fw-row {
+            background: #1f1f1f;
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            margin-bottom: 0.6rem;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            color: #f5f5f5;
+        }
+        .fw-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+            color: #bdbdbd;
+        }
+        .fw-value {
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: #f4b400;
+        }
+        .fw-sub, .fw-row-sub {
+            font-size: 0.8rem;
+            color: #aaaaaa;
+        }
+        .fw-ratio, .fw-row-ratio {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+        .fw-row-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .fw-row-value {
+            font-size: 1.2rem;
+            color: #f4b400;
+            font-weight: 600;
+        }
+        .fw-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+        .fw-secondary {
+            color: #7b7b7b;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.subheader("Jungle FW Dashboard")
+    st.caption(f"MTD ending {end_date:%b %d, %Y}")
+
+    studio_fw_df = cast(pd.DataFrame, studio_df.copy())
+    studio_fw_df["week_start"] = studio_fw_df["date"].dt.to_period("W-SUN").start_time
+
+    month_start_ts = cast(pd.Timestamp, pd.Timestamp(end_date.replace(day=1)))
+    month_df = studio_fw_df.loc[
+        (studio_fw_df["date"] >= month_start_ts) & (studio_fw_df["date"] <= end_ts)
+    ].copy()
+    days_covered = (end_ts - month_start_ts).days
+    prev_month_start = cast(pd.Timestamp, month_start_ts - pd.DateOffset(years=1))
+    prev_month_end = cast(pd.Timestamp, prev_month_start + pd.Timedelta(days=days_covered))
+    prev_month_df = studio_fw_df.loc[
+        (studio_fw_df["date"] >= prev_month_start) & (studio_fw_df["date"] <= prev_month_end)
+    ].copy()
+
+    def sum_optional(df: pd.DataFrame, column: str) -> Optional[float]:
+        if column not in df.columns or df.empty:
+            return None
+        total = df[column].sum()
+        return float(total) if pd.notna(total) else None
+
+    month_est_sales = sum_optional(month_df, "est_sales")
+    prev_est_sales = sum_optional(prev_month_df, "est_sales")
+
+    month_est_visits = sum_optional(month_df, "est_visits")
+    prev_est_visits = sum_optional(prev_month_df, "est_visits")
+
+    def mat_pct(df: pd.DataFrame) -> Optional[float]:
+        total = sum_optional(df, "total_visits")
+        mt = sum_optional(df, "mt_visits")
+        return (mt / total) if (mt is not None and total not in (None, 0)) else None
+
+    month_mat = mat_pct(month_df)
+    prev_mat = mat_pct(prev_month_df)
+
+    def per_visit(df: pd.DataFrame) -> Optional[float]:
+        total_visits = sum_optional(df, "total_visits")
+        sales = sum_optional(df, "netsales")
+        return (sales / total_visits) if (sales is not None and total_visits not in (None, 0)) else None
+
+    month_per_visit = per_visit(month_df)
+    prev_per_visit = per_visit(prev_month_df)
+
+    month_ft = sum_optional(month_df, "first_time")
+    prev_ft = sum_optional(prev_month_df, "first_time")
+
+    prev_month_label = prev_month_end.strftime("%m/%d/%y") if not prev_month_df.empty else ""
+
+    month_cards = [
+        (
+            "Est Sales",
+            format_currency(month_est_sales),
+            prev_month_label,
+            ratio_badge(yoy_ratio(month_est_sales, prev_est_sales)),
+        ),
+        (
+            "Est Visits",
+            format_number(month_est_visits, 0),
+            prev_month_label,
+            ratio_badge(yoy_ratio(month_est_visits, prev_est_visits)),
+        ),
+        (
+            "Mat %",
+            format_percent(month_mat),
+            prev_month_label,
+            ratio_badge(yoy_ratio(month_mat, prev_mat)),
+        ),
+        (
+            "$ / Visit",
+            format_number(month_per_visit, 2),
+            prev_month_label,
+            ratio_badge(yoy_ratio(month_per_visit, prev_per_visit)),
+        ),
+        (
+            "FT Visit",
+            format_number(month_ft, 0),
+            prev_month_label,
+            ratio_badge(yoy_ratio(month_ft, prev_ft)),
+        ),
+    ]
+
+    weekly_totals = studio_fw_df.groupby("week_start")["netsales"].sum().sort_index(ascending=False)
+    weekly_rows = weekly_totals.head(6).reset_index()
+
+    daily_totals = studio_fw_df.groupby("date")["netsales"].sum().sort_index(ascending=False)
+    daily_rows = daily_totals.head(6).reset_index()
+
+    col_month, col_week, col_day = st.columns([1.2, 1, 1])
+
+    with col_month:
+        st.markdown("<div class='fw-section-title'>MTD</div>", unsafe_allow_html=True)
+        month_cards_html = "".join(
+            render_fw_card(label, value, subtitle, ratio) for label, value, subtitle, ratio in month_cards
+        )
+        st.markdown(month_cards_html, unsafe_allow_html=True)
+
+    with col_week:
+        st.markdown("<div class='fw-section-title'>Weekly Sales</div>", unsafe_allow_html=True)
+        weekly_html_parts = []
+        for row in weekly_rows.to_dict("records"):
+            week_start = cast(pd.Timestamp, pd.Timestamp(row["week_start"]))
+            week_value = float(row["netsales"])
+            prev_week = cast(pd.Timestamp, week_start - pd.Timedelta(weeks=52))
+            prev_value = weekly_totals.get(prev_week)
+            weekly_html_parts.append(
+                render_fw_row(
+                    week_start.strftime("%m/%d/%y"),
+                    format_currency(week_value),
+                    prev_week.strftime("%m/%d/%y"),
+                    ratio_badge(yoy_ratio(week_value, prev_value)),
+                )
+            )
+        st.markdown("".join(weekly_html_parts), unsafe_allow_html=True)
+
+    with col_day:
+        st.markdown("<div class='fw-section-title'>Daily Sales</div>", unsafe_allow_html=True)
+        daily_html_parts = []
+        for row in daily_rows.to_dict("records"):
+            day = cast(pd.Timestamp, pd.Timestamp(row["date"]))
+            day_value = float(row["netsales"])
+            prev_day = cast(pd.Timestamp, day - pd.DateOffset(years=1))
+            prev_day_value = daily_totals.get(prev_day)
+            daily_html_parts.append(
+                render_fw_row(
+                    day.strftime("%m/%d/%y"),
+                    format_currency(day_value),
+                    prev_day.strftime("%m/%d/%y"),
+                    ratio_badge(yoy_ratio(day_value, prev_day_value)),
+                )
+            )
+        st.markdown("".join(daily_html_parts), unsafe_allow_html=True)

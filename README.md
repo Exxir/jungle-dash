@@ -11,7 +11,7 @@ Simple Streamlit app that connects to Supabase to display monthly net sales per 
    SUPABASE_DB_URL="postgresql://..."
    ```
 3. Run locally: `streamlit run app.py`
-4. Studio daily dashboard (with occupancy tab): `streamlit run app_studio_daily.py`
+4. Studio daily dashboard (occupancy + FW dashboard tabs): `streamlit run app_studio_daily.py`
 
 ### Database expectations
 
