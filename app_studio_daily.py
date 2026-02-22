@@ -427,8 +427,14 @@ with tab_chart:
 
     selected_chart_df = build_chart_data(filtered_df, selected_series_label, selected_label)
     comparison_chart_df = build_chart_data(comparison_df, comparison_series_label, comparison_label)
-    selected_chart_df["month_day"] = selected_chart_df["date"].dt.strftime("%m-%d")
-    comparison_chart_df["month_day"] = comparison_chart_df["date"].dt.strftime("%m-%d")
+    if horizon in ("Daily", "Weekly"):
+        selected_chart_df["x_axis"] = selected_chart_df["date"].dt.strftime("%a")
+        comparison_chart_df["x_axis"] = comparison_chart_df["date"].dt.strftime("%a")
+        x_title = "Weekday"
+    else:
+        selected_chart_df["x_axis"] = selected_chart_df["date"].dt.strftime("%m")
+        comparison_chart_df["x_axis"] = comparison_chart_df["date"].dt.strftime("%m")
+        x_title = "Month"
     chart_frames = [selected_chart_df, comparison_chart_df]
     legend_order = [selected_series_label, comparison_series_label]
 
@@ -443,8 +449,8 @@ with tab_chart:
             .mark_line(point=True)
             .encode(
                 x=alt.X(
-                    "month_day:N",
-                    title="Month/Day",
+                    "x_axis:N",
+                    title=x_title,
                 ),
                 y=alt.Y("netsales:Q", title="Net sales"),
                 color=alt.Color(
