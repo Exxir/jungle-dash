@@ -155,7 +155,8 @@ div[data-baseweb="select"] > div {
     background-color: #0c0f1f;
     border: 1px solid #2c314f;
     border-radius: 12px;
-    min-height: 180px;
+    min-height: auto;
+    padding: 0.25rem 0.3rem;
 }
 div[data-baseweb="tag"] {
     background-color: #5c5feb;
