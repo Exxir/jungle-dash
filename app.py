@@ -167,13 +167,36 @@ with col2:
         delta=comparison_delta_pct
     )
 
-st.subheader("Selected Range Details")
-range_view = filtered_df.sort_values("date", ascending=False)
-st.dataframe(format_table(range_view))
+tab_tables, tab_chart = st.tabs(["Tables", "Line Chart"])
 
-st.subheader("Comparison Range Details")
-if comparison_df.empty:
-    st.info("No data available for the comparison range.")
-else:
-    comparison_view = comparison_df.sort_values("date", ascending=False)
-    st.dataframe(format_table(comparison_view))
+with tab_tables:
+    st.subheader("Selected Range Details")
+    range_view = filtered_df.sort_values("date", ascending=False)
+    st.dataframe(format_table(range_view))
+
+    st.subheader("Comparison Range Details")
+    if comparison_df.empty:
+        st.info("No data available for the comparison range.")
+    else:
+        comparison_view = comparison_df.sort_values("date", ascending=False)
+        st.dataframe(format_table(comparison_view))
+
+with tab_chart:
+    selected_series = (
+        filtered_df.groupby("date")["netsales"].sum()
+        if not filtered_df.empty else pd.Series(dtype=float)
+    )
+    comparison_series = (
+        comparison_df.groupby("date")["netsales"].sum()
+        if not comparison_df.empty else pd.Series(dtype=float)
+    )
+
+    chart_df = pd.concat([
+        selected_series.rename("Selected Range"),
+        comparison_series.rename("Comparison Range")
+    ], axis=1).sort_index()
+
+    if chart_df.dropna(how="all").empty:
+        st.info("Not enough data to render the chart.")
+    else:
+        st.line_chart(chart_df)
