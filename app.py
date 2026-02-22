@@ -204,8 +204,8 @@ with tab_chart:
     selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
     comparison_label = f"{comp_start_date:%m-%d-%y} – {comp_end_date:%m-%d-%y}"
 
-    selected_series_label = f"Selected Range ({selected_label})"
-    comparison_series_label = f"Comparison Range ({comparison_label})"
+    selected_series_label = f"Current {selected_label}"
+    comparison_series_label = f"Comparison {comparison_label}"
 
     selected_chart_df = build_chart_data(filtered_df, selected_series_label, selected_label)
     comparison_chart_df = build_chart_data(comparison_df, comparison_series_label, comparison_label)
