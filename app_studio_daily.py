@@ -477,8 +477,11 @@ with tab_visits:
     for frame in (selected_visits, comparison_visits):
         for col in ("mt_visits", "cp_visits"):
             if col not in frame.columns:
-                frame[col] = 0
-        frame["visits"] = frame[["mt_visits", "cp_visits"]].sum(axis=1, skipna=True)
+                if "total_visits" in frame.columns:
+                    frame[col] = frame["total_visits"] / 2
+                else:
+                    frame[col] = 0
+        frame["visits"] = frame[["mt_visits", "cp_visits"]].fillna(0).sum(axis=1)
 
     total_visits = selected_visits["visits"].sum()
     comparison_total_visits = comparison_visits["visits"].sum() if not comparison_visits.empty else 0.0
