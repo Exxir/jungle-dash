@@ -511,6 +511,7 @@ with tab_fw_dashboard:
     st.caption(f"MTD ending {end_date:%b %d, %Y}")
 
     studio_fw_df = cast(pd.DataFrame, studio_df.copy())
+    studio_fw_df["date"] = pd.to_datetime(studio_fw_df["date"], errors="coerce")
     studio_fw_df["week_start"] = studio_fw_df["date"].dt.to_period("W-SUN").start_time
 
     month_start_ts = cast(pd.Timestamp, pd.Timestamp(end_date.replace(day=1)))
