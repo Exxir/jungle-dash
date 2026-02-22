@@ -51,6 +51,19 @@ def format_table(df: pd.DataFrame) -> pd.DataFrame:
     return view
 
 
+def closest_timestamp(index: pd.DatetimeIndex, candidate: pd.Timestamp) -> pd.Timestamp:
+    if len(index) == 0:
+        return candidate
+    first_ts = pd.Timestamp(index[0])  # type: ignore[index]
+    last_ts = pd.Timestamp(index[-1])  # type: ignore[index]
+    if candidate <= first_ts:
+        return first_ts
+    if candidate >= last_ts:
+        return last_ts
+    pos = index.get_indexer([candidate], method="nearest")[0]
+    return pd.Timestamp(index[pos])  # type: ignore[index]
+
+
 def build_chart_data(df: pd.DataFrame, series_label: str, range_label: str) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame({
@@ -174,7 +187,13 @@ else:
 
 history_series = studio_df.groupby("date")["netsales"].sum().sort_index()
 history_index: pd.DatetimeIndex = pd.DatetimeIndex(history_series.index)
-history_dates_list = list(history_index)
+weekday_index_map = {}
+if len(history_index) > 0:
+    history_weekday_series = pd.Series(history_index, index=history_index).dt.weekday
+    for weekday in range(7):
+        mask = history_weekday_series == weekday
+        if mask.any():
+            weekday_index_map[weekday] = history_weekday_series.index[mask]
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -288,16 +307,15 @@ with tab_forecast:
             for ts in forecast_dates:
                 target_ts = cast(pd.Timestamp, pd.Timestamp(ts))
                 candidate = target_ts - pd.DateOffset(years=1)
-                if candidate < history_index[0]:
-                    source_idx = 0
-                elif candidate > history_index[-1]:
-                    source_idx = len(history_index) - 1
-                else:
-                    source_idx = history_index.get_indexer([candidate], method="nearest")[0]
+                target_weekday = int(target_ts.dayofweek)
+                weekday_history = weekday_index_map.get(target_weekday)
 
-                source_ts_raw = history_dates_list[source_idx]
-                source_timestamp = pd.Timestamp(source_ts_raw)
-                base_value = history_series.iloc[source_idx]
+                if weekday_history is not None and len(weekday_history) > 0:
+                    source_timestamp = closest_timestamp(weekday_history, candidate)
+                else:
+                    source_timestamp = closest_timestamp(history_index, candidate)
+
+                base_value = float(history_series.loc[source_timestamp])
                 projected = base_value * yoy_multiplier
 
                 forecast_rows.append(
