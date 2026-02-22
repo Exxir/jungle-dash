@@ -229,7 +229,7 @@ with tab_chart:
                 y=alt.Y("netsales:Q", title="Net sales"),
                 color=alt.Color(
                     "series:N",
-                    title="Range",
+                    title="",
                     scale=alt.Scale(domain=legend_order)
                 ),
                 tooltip=[
@@ -239,6 +239,11 @@ with tab_chart:
                     alt.Tooltip("netsales:Q", title="Net sales", format="$.0f"),
                     alt.Tooltip("range_label:N", title="Date range")
                 ]
+            )
+            .configure_legend(
+                orient="bottom",
+                direction="horizontal",
+                labelLimit=0
             )
             .interactive()
         )
