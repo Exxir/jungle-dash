@@ -211,9 +211,9 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_tables, tab_chart, tab_forecast = st.tabs(["Tables", "Line Chart", "Forecast"])
+tab_current, tab_chart, tab_forecast = st.tabs(["Current", "Line Chart", "Forecast"])
 
-with tab_tables:
+with tab_current:
     st.subheader("Selected Range Details")
     range_view = filtered_df.sort_values("date", ascending=False)
     st.dataframe(format_table(range_view))
