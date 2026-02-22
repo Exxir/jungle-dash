@@ -177,13 +177,23 @@ if not comparison_df.empty:
     shifted = comparison_df.copy()
     if not isinstance(shifted, pd.DataFrame):
         shifted = pd.DataFrame(shifted)
-    shifted["date"] = shifted["date"] + pd.Timedelta(days=365)
-    shifted = shifted[shifted["date"] > end_date]
-    shifted = shifted.sort_values(by="date").head(forecast_days)  # type: ignore[arg-type]
-    if not shifted.empty:
-        shifted["netsales"] = shifted["netsales"] * yoy_multiplier
-        shifted["weekday"] = shifted["date"].dt.strftime("%a")
-        forecast_df = shifted
+    shifted["date"] = pd.to_datetime(shifted["date"]) + pd.Timedelta(days=365)
+    cutoff = pd.Timestamp(end_date)
+    shifted_future = shifted[shifted["date"] > cutoff]
+    if shifted_future.empty:
+        shifted_future = shifted.sort_values(by="date")
+        if not shifted_future.empty:
+            future_dates = pd.date_range(
+                start=cutoff + pd.Timedelta(days=1),
+                periods=len(shifted_future),
+                freq="D"
+            )
+            shifted_future = shifted_future.assign(date=future_dates)
+    shifted_future = shifted_future.sort_values(by="date").head(forecast_days)  # type: ignore[arg-type]
+    if not shifted_future.empty:
+        shifted_future["netsales"] = shifted_future["netsales"] * yoy_multiplier
+        shifted_future["weekday"] = shifted_future["date"].dt.strftime("%a")
+        forecast_df = shifted_future
 forecast_df = cast(pd.DataFrame, forecast_df)
 forecast_label = ""
 forecast_series_label = ""
