@@ -42,7 +42,7 @@ def clamp_date(value: date, lower: date, upper: date) -> date:
 def format_table(df: pd.DataFrame) -> pd.DataFrame:
     view = df.copy()
     if "date" in view.columns:
-        view["date"] = view["date"].dt.strftime("%Y-%m-%d")
+        view["date"] = view["date"].dt.strftime("%d-%m-%y")
     if "weekday" in view.columns:
         view["weekday"] = view["weekday"].fillna("").str[:3]
     return view
