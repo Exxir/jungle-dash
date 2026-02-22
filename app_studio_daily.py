@@ -85,6 +85,30 @@ def build_chart_data(df: pd.DataFrame, series_label: str, range_label: str) -> p
 st.set_page_config(layout="wide")
 st.title("Jungle Studio Daily Dashboard")
 
+STUDIO_PICKER_CSS = """
+<style>
+div[data-baseweb="select"] > div {
+    background-color: #0c0f1f;
+    border: 1px solid #2c314f;
+    border-radius: 12px;
+    min-height: 180px;
+}
+div[data-baseweb="tag"] {
+    background-color: #5c5feb;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+}
+div[data-baseweb="tag"] span {
+    color: #fff !important;
+}
+div[data-baseweb="select"] svg {
+    color: #9ea4da;
+}
+</style>
+"""
+st.markdown(STUDIO_PICKER_CSS, unsafe_allow_html=True)
+
 engine = create_engine(
     st.secrets["SUPABASE_DB_URL"],
     connect_args={"sslmode": "require"}
@@ -118,7 +142,19 @@ df = load_data()
 
 # --- Studio Selector ---
 studios = sorted(df["studio"].unique())
-selected_studio = st.selectbox("Select studio", studios)
+default_selection = [studios[0]] if studios else []
+studio_selection = st.multiselect(
+    "Studios",
+    studios,
+    default=default_selection,
+    max_selections=1,
+)
+
+if not studio_selection:
+    st.info("Select at least one studio to continue.")
+    st.stop()
+
+selected_studio = studio_selection[0]
 
 studio_df = df[df["studio"] == selected_studio].copy()
 
