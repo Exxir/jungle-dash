@@ -89,10 +89,14 @@ def align_date_to_weekday(target_date: date, weekday_index_map: dict[int, pd.Dat
     weekday = int(target_ts.dayofweek)
     candidates = weekday_index_map.get(weekday)
     if candidates is not None and len(candidates) > 0:
-        aligned = closest_timestamp(candidates, target_ts)
-        return aligned.date()
-    aligned = closest_timestamp(history_index, target_ts)
-    return aligned.date()
+        earlier = candidates[candidates <= target_ts]
+        if len(earlier) > 0:
+            return pd.Timestamp(earlier[-1]).date()  # type: ignore[index]
+        return pd.Timestamp(candidates[0]).date()  # type: ignore[index]
+    earlier_any = history_index[history_index <= target_ts]
+    if len(earlier_any) > 0:
+        return pd.Timestamp(earlier_any[-1]).date()  # type: ignore[index]
+    return pd.Timestamp(history_index[0]).date()  # type: ignore[index]
 
 
 def compute_current_dates(horizon: str, min_date: date, max_date: date) -> Tuple[date, date]:
@@ -144,30 +148,6 @@ def compute_comparison_dates(
 
 st.set_page_config(layout="wide")
 st.title("Jungle Studio Daily Dashboard")
-
-STUDIO_PICKER_CSS = """
-<style>
-div[data-baseweb="select"] > div {
-    background-color: #0c0f1f;
-    border: 1px solid #2c314f;
-    border-radius: 12px;
-    min-height: 160px;
-}
-div[data-baseweb="tag"] {
-    background-color: #5c5feb;
-    border-radius: 10px;
-    color: #fff;
-    font-weight: 600;
-}
-div[data-baseweb="tag"] span {
-    color: #fff !important;
-}
-div[data-baseweb="select"] svg {
-    color: #9ea4da;
-}
-</style>
-"""
-st.markdown(STUDIO_PICKER_CSS, unsafe_allow_html=True)
 
 STUDIO_PICKER_CSS = """
 <style>
@@ -296,7 +276,6 @@ if filtered_df.empty:
     st.stop()
 
 range_sales = filtered_df["netsales"].sum()
-range_length_days = max((end_date - start_date).days, 0)
 
 comparison_selection_df = studio_df[
     (studio_df["date"] >= comp_start_ts) &
