@@ -38,6 +38,15 @@ def normalize_range(selection, fallback: Tuple[date, date]) -> Tuple[date, date]
 def clamp_date(value: date, lower: date, upper: date) -> date:
     return max(min(value, upper), lower)
 
+
+def format_table(df: pd.DataFrame) -> pd.DataFrame:
+    view = df.copy()
+    if "date" in view.columns:
+        view["date"] = view["date"].dt.strftime("%Y-%m-%d")
+    if "weekday" in view.columns:
+        view["weekday"] = view["weekday"].fillna("").str[:3]
+    return view
+
 st.set_page_config(layout="wide")
 st.title("Jungle Dashboard")
 
@@ -155,11 +164,11 @@ with col2:
 
 st.subheader("Selected Range Details")
 range_view = filtered_df.sort_values("date", ascending=False)
-st.dataframe(range_view)
+st.dataframe(format_table(range_view))
 
 st.subheader("Comparison Range Details")
 if comparison_df.empty:
     st.info("No data available for the comparison range.")
 else:
     comparison_view = comparison_df.sort_values("date", ascending=False)
-    st.dataframe(comparison_view)
+    st.dataframe(format_table(comparison_view))
