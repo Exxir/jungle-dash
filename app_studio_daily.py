@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Sequence, Tuple, cast
+from typing import Optional, Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -94,7 +94,13 @@ engine = create_engine(
 @st.cache_data(ttl=60)
 def load_data():
     query = text("""
-        SELECT "studio", "date", "net_sales"
+        SELECT
+            "studio",
+            "date",
+            "net_sales",
+            "total_visits",
+            "capacity",
+            "classes"
         FROM public.studio_daily_metrics
         WHERE "net_sales" IS NOT NULL
     """)
@@ -103,6 +109,8 @@ def load_data():
     df["date"] = pd.to_datetime(df["date"])
     df = df.rename(columns={"net_sales": "netsales"})
     df["weekday"] = df["date"].dt.strftime("%A")
+    for column in ("total_visits", "capacity", "classes"):
+        df[column] = pd.to_numeric(df[column], errors="coerce")
     return df
 
 
@@ -218,7 +226,7 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_current, tab_chart, tab_forecast = st.tabs(["Current", "Line Chart", "Forecast"])
+tab_current, tab_chart, tab_forecast, tab_occupancy = st.tabs(["Current", "Line Chart", "Forecast", "Occupancy"])
 
 with tab_current:
     st.subheader("Selected Range Details")
@@ -340,3 +348,53 @@ with tab_forecast:
                 st.info("No forecast data for the selected range.")
             else:
                 st.dataframe(format_table(forecast_view))
+
+
+def calculate_occupancy_ratio(df: pd.DataFrame) -> Optional[float]:
+    if df.empty:
+        return None
+    capacity_classes = (df["capacity"] * df["classes"]).fillna(0)
+    denominator = capacity_classes.sum()
+    if denominator == 0:
+        return None
+    numerator = df["total_visits"].fillna(0).sum()
+    return numerator / denominator if denominator else None
+
+
+with tab_occupancy:
+    st.subheader("Occupancy Percentage")
+    current_occ = calculate_occupancy_ratio(filtered_df)
+    comparison_occ = calculate_occupancy_ratio(comparison_df)
+
+    occ_col1, occ_col2 = st.columns(2)
+    occ_col1.metric(
+        "Selected range occupancy",
+        value=f"{current_occ:.1%}" if current_occ is not None else "N/A"
+    )
+    occ_col2.metric(
+        "Comparison occupancy",
+        value=f"{comparison_occ:.1%}" if comparison_occ is not None else "N/A",
+        delta=(
+            f"{((current_occ - comparison_occ) / comparison_occ * 100):+.1f}%"
+            if (current_occ is not None and comparison_occ not in (None, 0))
+            else None
+        )
+    )
+
+    def build_occupancy_table(df: pd.DataFrame) -> pd.DataFrame:
+        table = df.copy()
+        denom = (table["capacity"] * table["classes"]).replace({0: pd.NA})
+        table["occupancy_pct"] = table["total_visits"] / denom
+        table["occupancy_pct"] = table["occupancy_pct"].apply(
+            lambda x: f"{x:.1%}" if pd.notna(x) else ""
+        )
+        return table
+
+    st.markdown("### Selected Range Occupancy Detail")
+    st.dataframe(build_occupancy_table(filtered_df))
+
+    st.markdown("### Comparison Range Occupancy Detail")
+    if comparison_df.empty:
+        st.info("No comparison data available to compute occupancy.")
+    else:
+        st.dataframe(build_occupancy_table(comparison_df))
