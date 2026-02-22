@@ -100,21 +100,21 @@ def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
 
 def render_table(table: pd.DataFrame, tooltip_value_col: Optional[str] = None, tooltip_source_col: Optional[str] = None):
     display_table = table.copy()
+    styled = None
     if (
         tooltip_value_col and tooltip_source_col and
         tooltip_value_col in display_table.columns and
         tooltip_source_col in display_table.columns
     ):
-        display_table[tooltip_value_col] = [
-            f'<span title="Comparison date: {src}">{val}</span>' if val and src else val
-            for val, src in zip(
-                display_table[tooltip_value_col],
-                display_table[tooltip_source_col]
-            )
-        ]
+        tooltip_series = display_table[tooltip_source_col]
         display_table = display_table.drop(columns=[tooltip_source_col])
+        tooltip_frame = pd.DataFrame("", index=display_table.index, columns=display_table.columns)
+        tooltip_frame[tooltip_value_col] = tooltip_series.apply(
+            lambda src: f"Comparison date: {src}" if pd.notna(src) and src else ""
+        )
+        styled = display_table.style.set_tooltips(tooltip_frame)
 
-    st.markdown(display_table.to_html(index=False, escape=False), unsafe_allow_html=True)
+    st.dataframe(styled if styled is not None else display_table, use_container_width=True)
 
 
 def closest_timestamp(index: pd.DatetimeIndex, candidate: pd.Timestamp) -> pd.Timestamp:
