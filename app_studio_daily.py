@@ -725,6 +725,20 @@ with tab_fw_dashboard:
     month_mat = mat_pct(month_df)
     prev_mat = mat_pct(prev_month_df)
 
+    def occ_pct(df: pd.DataFrame) -> Optional[float]:
+        numer = sum_optional(df, "total_visits")
+        denom = sum_optional(df, "capacity")
+        classes = sum_optional(df, "classes")
+        if denom in (None, 0) or classes in (None, 0):
+            return None
+        slots = sum_optional(df, "slots")
+        if slots:
+            return numer / slots if (numer is not None and slots not in (None, 0)) else None
+        return None
+
+    month_occ = calculate_occupancy_ratio(month_df)
+    prev_occ = calculate_occupancy_ratio(prev_month_df)
+
     def per_visit(df: pd.DataFrame) -> Optional[float]:
         total_visits = sum_optional(df, "total_visits")
         sales = sum_optional(df, "netsales")
@@ -741,7 +755,7 @@ with tab_fw_dashboard:
     month_cards = [
         (
             "Est Sales",
-            format_currency(month_est_sales),
+            format_currency(range_sales_display),
             prev_month_label,
             ratio_badge(yoy_ratio(month_est_sales, prev_est_sales)),
         ),
@@ -752,10 +766,10 @@ with tab_fw_dashboard:
             ratio_badge(yoy_ratio(month_est_visits, prev_est_visits)),
         ),
         (
-            "Mat %",
-            format_percent(month_mat),
+            "Occ %",
+            format_percent(month_occ),
             prev_month_label,
-            ratio_badge(yoy_ratio(month_mat, prev_mat)),
+            ratio_badge(yoy_ratio(month_occ, prev_occ)),
         ),
         (
             "$ / Visit",
