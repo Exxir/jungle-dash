@@ -107,8 +107,6 @@ def render_table(table: pd.DataFrame, tooltip_value_col: Optional[str] = None, t
         tooltip_source_col in display_table.columns
     ):
         tooltip_series = display_table[tooltip_source_col]
-        if tooltip_source_col == "comparison_date":
-            tooltip_series = pd.to_datetime(tooltip_series).dt.strftime("%m-%d-%y")
         display_table = display_table.drop(columns=[tooltip_source_col])
         tooltip_frame = pd.DataFrame("", index=display_table.index, columns=display_table.columns)
         tooltip_frame[tooltip_value_col] = tooltip_series.apply(
@@ -116,10 +114,7 @@ def render_table(table: pd.DataFrame, tooltip_value_col: Optional[str] = None, t
         )
         styled = display_table.style.set_tooltips(tooltip_frame)
 
-    if styled is not None:
-        st.dataframe(styled, use_container_width=True)
-    else:
-        st.dataframe(display_table, use_container_width=True)
+    st.dataframe(styled if styled is not None else display_table, use_container_width=True)
 
 
 def closest_timestamp(index: pd.DatetimeIndex, candidate: pd.Timestamp) -> pd.Timestamp:
