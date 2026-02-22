@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from typing import Sequence, Tuple
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
@@ -48,6 +49,24 @@ def format_table(df: pd.DataFrame) -> pd.DataFrame:
     if "netsales" in view.columns:
         view["netsales"] = view["netsales"].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
     return view
+
+
+def build_chart_data(df: pd.DataFrame, series_label: str, range_label: str) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame({
+            "date": pd.Series(dtype="datetime64[ns]"),
+            "netsales": pd.Series(dtype=float),
+            "series": pd.Series(dtype="string"),
+            "weekday": pd.Series(dtype="string"),
+            "range_label": pd.Series(dtype="string"),
+        })
+    grouped = (
+        df.groupby("date")["netsales"].sum().reset_index()
+    )
+    grouped["series"] = series_label
+    grouped["weekday"] = grouped["date"].dt.strftime("%a")
+    grouped["range_label"] = range_label
+    return grouped
 
 st.set_page_config(layout="wide")
 st.title("Jungle Dashboard")
@@ -182,21 +201,31 @@ with tab_tables:
         st.dataframe(format_table(comparison_view))
 
 with tab_chart:
-    selected_series = (
-        filtered_df.groupby("date")["netsales"].sum()
-        if not filtered_df.empty else pd.Series(dtype=float)
-    )
-    comparison_series = (
-        comparison_df.groupby("date")["netsales"].sum()
-        if not comparison_df.empty else pd.Series(dtype=float)
-    )
+    selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
+    comparison_label = f"{comp_start_date:%m-%d-%y} – {comp_end_date:%m-%d-%y}"
 
-    chart_df = pd.concat([
-        selected_series.rename("Selected Range"),
-        comparison_series.rename("Comparison Range")
-    ], axis=1).sort_index()
+    selected_chart_df = build_chart_data(filtered_df, "Selected Range", selected_label)
+    comparison_chart_df = build_chart_data(comparison_df, "Comparison Range", comparison_label)
+    chart_df = pd.concat([selected_chart_df, comparison_chart_df], ignore_index=True)
 
-    if chart_df.dropna(how="all").empty:
+    if chart_df.empty:
         st.info("Not enough data to render the chart.")
     else:
-        st.line_chart(chart_df)
+        chart = (
+            alt.Chart(chart_df)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("date:T", title="Date"),
+                y=alt.Y("netsales:Q", title="Net sales"),
+                color=alt.Color("series:N", title="Range"),
+                tooltip=[
+                    alt.Tooltip("series:N", title="Range"),
+                    alt.Tooltip("date:T", title="Date"),
+                    alt.Tooltip("weekday:N", title="Weekday"),
+                    alt.Tooltip("netsales:Q", title="Net sales", format="$.0f"),
+                    alt.Tooltip("range_label:N", title="Date range")
+                ]
+            )
+            .interactive()
+        )
+        st.altair_chart(chart, use_container_width=True)
