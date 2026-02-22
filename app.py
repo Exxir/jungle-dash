@@ -45,6 +45,8 @@ def format_table(df: pd.DataFrame) -> pd.DataFrame:
         view["date"] = view["date"].dt.strftime("%d-%m-%y")
     if "weekday" in view.columns:
         view["weekday"] = view["weekday"].fillna("").str[:3]
+    if "netsales" in view.columns:
+        view["netsales"] = view["netsales"].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
     return view
 
 st.set_page_config(layout="wide")
