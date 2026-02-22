@@ -187,6 +187,15 @@ div[data-baseweb="select"] svg {
     padding: 0.5rem 0.9rem 0.7rem;
     margin: 0;
 }
+div[data-baseweb="radio"] {
+    padding: 0;
+    margin: 0;
+}
+div[data-baseweb="radio"] > div {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
 </style>
 """
 st.markdown(STUDIO_PICKER_CSS, unsafe_allow_html=True)
@@ -321,7 +330,7 @@ else:
 
 st.markdown(
     (
-        "<div style='margin-top:0;margin-bottom:0.05rem;color:#aeb3d1;font-size:0.9rem;'>"
+        "<div style='margin-top:-0.05rem;margin-bottom:0;color:#aeb3d1;font-size:0.9rem;'>"
         f"Current: {start_date:%b %d, %Y} – {end_date:%b %d, %Y} | "
         f"Comparison: {comp_start_date:%b %d, %Y} – {comp_end_date:%b %d, %Y}"
         "</div>"
