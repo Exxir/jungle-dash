@@ -1,5 +1,6 @@
+from calendar import monthrange
 from datetime import date, timedelta
-from typing import Optional, Sequence, Tuple, cast
+from typing import List, Optional, Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -105,6 +106,10 @@ def compute_current_dates(horizon: str, min_date: date, max_date: date) -> Tuple
     elif horizon == "Weekly":
         end = max_date
         start = max_date - timedelta(days=6)
+    elif horizon == "Monthly Estimate":
+        start = max_date.replace(day=1)
+        end_day = monthrange(max_date.year, max_date.month)[1]
+        end = max_date.replace(day=end_day)
     else:
         start = max_date.replace(day=1)
         end = max_date
@@ -278,7 +283,7 @@ with selector_card:
     st.markdown('<div class="selector-title" style="margin-top:0.15rem;">Time horizon</div>', unsafe_allow_html=True)
     horizon = st.radio(
         "Select horizon",
-        ["Daily", "Weekly", "Monthly"],
+        ["Daily", "Weekly", "Monthly", "Monthly Estimate"],
         horizontal=True,
         label_visibility="collapsed",
     )
@@ -301,9 +306,13 @@ end_ts = pd.Timestamp(end_date)
 comp_start_ts = pd.Timestamp(comp_start_date)
 comp_end_ts = pd.Timestamp(comp_end_date)
 
+actual_end_ts = cast(pd.Timestamp, end_ts)
+if horizon == "Monthly Estimate":
+    actual_end_ts = cast(pd.Timestamp, pd.Timestamp(max_date))
+
 filtered_selection = studio_df[
     (studio_df["date"] >= start_ts) &
-    (studio_df["date"] <= end_ts)
+    (studio_df["date"] <= actual_end_ts)
 ]
 filtered_df = pd.DataFrame(filtered_selection).copy()
 
@@ -328,6 +337,48 @@ else:
     comparison_delta_pct = f"{diff_pct:+.1f}%"
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
 
+forecast_extra_total = 0.0
+range_sales_display = range_sales
+
+forecast_values: List[float] = []
+
+if horizon == "Monthly Estimate":
+    partial_span = (actual_end_ts - start_ts).days
+    partial_comp_end = comp_start_ts + timedelta(days=partial_span)
+    if partial_comp_end.value > comp_end_ts.value:
+        partial_comp_end = comp_end_ts
+    comparison_partial = comparison_df[
+        (comparison_df["date"] >= comp_start_ts) &
+        (comparison_df["date"] <= partial_comp_end)
+    ]
+    comparison_partial_total = comparison_partial["netsales"].sum()
+    forecast_multiplier = yoy_multiplier
+    if comparison_partial_total and comparison_partial_total > 0:
+        forecast_multiplier = range_sales / comparison_partial_total
+
+    if actual_end_ts.value < end_ts.value:
+        future_dates = pd.date_range(start=actual_end_ts + timedelta(days=1), end=end_ts)
+        for ts in future_dates:
+            target_ts = cast(pd.Timestamp, pd.Timestamp(ts))
+            candidate = cast(pd.Timestamp, target_ts - pd.DateOffset(years=1))
+            weekday = int(target_ts.dayofweek)
+            weekday_history = weekday_index_map.get(weekday)
+
+            if weekday_history is not None and len(weekday_history) > 0:
+                source_timestamp = closest_timestamp(weekday_history, candidate)
+            else:
+                source_timestamp = closest_timestamp(history_index, candidate)
+
+            base_value = float(history_series.loc[source_timestamp])
+            projected = base_value * forecast_multiplier
+            forecast_values.append(float(projected))
+
+    forecast_extra_total = float(sum(forecast_values))
+    range_sales_display = range_sales + forecast_extra_total
+    if (not comparison_df.empty) and comparison_sales:
+        diff_pct = ((range_sales_display - comparison_sales) / comparison_sales) * 100
+        comparison_delta_pct = f"{diff_pct:+.1f}%"
+
 st.markdown(
     (
         "<div style='margin-top:-0.05rem;margin-bottom:0;color:#aeb3d1;font-size:0.9rem;'>"
@@ -344,7 +395,7 @@ col1, col2 = st.columns([1, 1])
 with col1:
     st.metric(
         label="Net sales (selected range)",
-        value=f"${range_sales:,.0f}"
+        value=f"${range_sales_display:,.0f}"
     )
 
 with col2:
