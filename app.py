@@ -170,8 +170,7 @@ else:
     diff_pct = ((range_sales - comparison_sales) / comparison_sales) * 100
     comparison_delta_pct = f"{diff_pct:+.1f}%"
 
-forecast_df: pd.DataFrame = pd.DataFrame(columns=studio_df.columns)
-forecast_days = 7
+forecast_source_df: pd.DataFrame = pd.DataFrame(columns=studio_df.columns)
 if not comparison_df.empty:
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
     shifted = comparison_df.copy()
@@ -189,19 +188,12 @@ if not comparison_df.empty:
                 freq="D"
             )
             shifted_future = shifted_future.assign(date=future_dates)
-    shifted_future = shifted_future.sort_values(by="date").head(forecast_days)  # type: ignore[arg-type]
     if not shifted_future.empty:
+        shifted_future = shifted_future.sort_values(by="date")  # type: ignore[arg-type]
         shifted_future["netsales"] = shifted_future["netsales"] * yoy_multiplier
         shifted_future["weekday"] = shifted_future["date"].dt.strftime("%a")
-        forecast_df = shifted_future
-forecast_df = cast(pd.DataFrame, forecast_df)
-forecast_label = ""
-forecast_series_label = ""
-if not forecast_df.empty:
-    forecast_start = forecast_df["date"].min().date()
-    forecast_end = forecast_df["date"].max().date()
-    forecast_label = f"{forecast_start:%m-%d-%y} – {forecast_end:%m-%d-%y}"
-    forecast_series_label = f"Forecast {forecast_label}"
+        forecast_source_df = shifted_future
+forecast_source_df = cast(pd.DataFrame, forecast_source_df)
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -219,7 +211,7 @@ with col2:
         delta=comparison_delta_pct
     )
 
-tab_tables, tab_chart = st.tabs(["Tables", "Line Chart"])
+tab_tables, tab_chart, tab_forecast = st.tabs(["Tables", "Line Chart", "Forecast"])
 
 with tab_tables:
     st.subheader("Selected Range Details")
@@ -233,13 +225,6 @@ with tab_tables:
         comparison_view = comparison_df.sort_values("date", ascending=False)
         st.dataframe(format_table(comparison_view))
 
-    st.subheader("Forecast (next 7 days)")
-    if forecast_df.empty:
-        st.info("No forecast available yet.")
-    else:
-        forecast_view = forecast_df.sort_values("date")
-        st.dataframe(format_table(forecast_view))
-
 with tab_chart:
     selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
     comparison_label = f"{comp_start_date:%m-%d-%y} – {comp_end_date:%m-%d-%y}"
@@ -251,11 +236,6 @@ with tab_chart:
     comparison_chart_df = build_chart_data(comparison_df, comparison_series_label, comparison_label)
     chart_frames = [selected_chart_df, comparison_chart_df]
     legend_order = [selected_series_label, comparison_series_label]
-
-    if not forecast_df.empty:
-        forecast_chart_df = build_chart_data(forecast_df, forecast_series_label, forecast_label)
-        chart_frames.append(forecast_chart_df)
-        legend_order.append(forecast_series_label)
 
     chart_df = pd.concat(chart_frames, ignore_index=True)
 
@@ -295,3 +275,36 @@ with tab_chart:
             .interactive()
         )
         st.altair_chart(chart, use_container_width=True)
+
+with tab_forecast:
+    if forecast_source_df.empty:
+        st.info("Not enough data to generate a forecast yet.")
+    else:
+        forecast_min = forecast_source_df["date"].min().date()
+        forecast_max = forecast_source_df["date"].max().date()
+        default_end = min(forecast_max, forecast_min + timedelta(days=13))
+        forecast_range_input = st.date_input(
+            "Forecast range",
+            value=(forecast_min, default_end),
+            min_value=forecast_min,
+            max_value=forecast_max,
+            help="Select future dates to view projected net sales"
+        )
+
+        normalized_forecast_range = normalize_range(
+            forecast_range_input,
+            (forecast_min, default_end)
+        )
+        forecast_start = clamp_date(normalized_forecast_range[0], forecast_min, forecast_max)
+        forecast_end = clamp_date(normalized_forecast_range[1], forecast_min, forecast_max)
+        forecast_mask = (
+            (forecast_source_df["date"] >= pd.Timestamp(forecast_start)) &
+            (forecast_source_df["date"] <= pd.Timestamp(forecast_end))
+        )
+        forecast_subset = forecast_source_df[forecast_mask]
+        forecast_view = pd.DataFrame(forecast_subset).sort_values(by="date", ascending=True)
+
+        if forecast_view.empty:
+            st.info("No forecast data for the selected range.")
+        else:
+            st.dataframe(format_table(forecast_view))
