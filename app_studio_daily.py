@@ -126,13 +126,15 @@ def compute_comparison_dates(
     oldest_month_start: date,
 ) -> Tuple[date, date]:
     period_length = current_end - current_start
-    candidate_start = current_start - timedelta(days=365)
-    candidate_end = current_end - timedelta(days=365)
 
     if horizon in ("Daily", "Weekly"):
+        shift = timedelta(weeks=52)
+        candidate_start = current_start - shift
+        candidate_end = current_end - shift
         comp_start = align_date_to_weekday(candidate_start, weekday_index_map, history_index)
         comp_end = align_date_to_weekday(candidate_end, weekday_index_map, history_index)
     else:
+        candidate_start = current_start - timedelta(days=365)
         comp_start = candidate_start
         comp_end = candidate_start + period_length
 
