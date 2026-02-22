@@ -211,11 +211,16 @@ with tab_chart:
     if chart_df.empty:
         st.info("Not enough data to render the chart.")
     else:
+        weekday_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         chart = (
             alt.Chart(chart_df)
             .mark_line(point=True)
             .encode(
-                x=alt.X("date:T", title="Date"),
+                x=alt.X(
+                    "weekday:N",
+                    title="Weekday",
+                    sort=weekday_order
+                ),
                 y=alt.Y("netsales:Q", title="Net sales"),
                 color=alt.Color("series:N", title="Range"),
                 tooltip=[
