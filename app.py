@@ -163,37 +163,18 @@ comparison_selection_df = studio_df[
 ]
 comparison_df: pd.DataFrame = pd.DataFrame(comparison_selection_df).copy()
 comparison_sales = comparison_df["netsales"].sum() if not comparison_df.empty else 0.0
+yoy_multiplier = 1.0
 comparison_delta_pct = None
 if comparison_df.empty or comparison_sales == 0:
     comparison_delta_pct = None
 else:
     diff_pct = ((range_sales - comparison_sales) / comparison_sales) * 100
     comparison_delta_pct = f"{diff_pct:+.1f}%"
-
-forecast_source_df: pd.DataFrame = pd.DataFrame(columns=studio_df.columns)
-if not comparison_df.empty:
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
-    shifted = comparison_df.copy()
-    if not isinstance(shifted, pd.DataFrame):
-        shifted = pd.DataFrame(shifted)
-    shifted["date"] = pd.to_datetime(shifted["date"]) + pd.Timedelta(days=365)
-    cutoff = pd.Timestamp(end_date)
-    shifted_future = shifted[shifted["date"] > cutoff]
-    if shifted_future.empty:
-        shifted_future = shifted.sort_values(by="date")
-        if not shifted_future.empty:
-            future_dates = pd.date_range(
-                start=cutoff + pd.Timedelta(days=1),
-                periods=len(shifted_future),
-                freq="D"
-            )
-            shifted_future = shifted_future.assign(date=future_dates)
-    if not shifted_future.empty:
-        shifted_future = shifted_future.sort_values(by="date")  # type: ignore[arg-type]
-        shifted_future["netsales"] = shifted_future["netsales"] * yoy_multiplier
-        shifted_future["weekday"] = shifted_future["date"].dt.strftime("%a")
-        forecast_source_df = shifted_future
-forecast_source_df = cast(pd.DataFrame, forecast_source_df)
+
+history_series = studio_df.groupby("date")["netsales"].sum().sort_index()
+history_index: pd.DatetimeIndex = pd.DatetimeIndex(history_series.index)
+history_dates_list = list(history_index)
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -277,34 +258,60 @@ with tab_chart:
         st.altair_chart(chart, use_container_width=True)
 
 with tab_forecast:
-    if forecast_source_df.empty:
-        st.info("Not enough data to generate a forecast yet.")
+    if history_series.empty:
+        st.info("Not enough historical data to project future sales.")
     else:
-        forecast_min = forecast_source_df["date"].min().date()
-        forecast_max = forecast_source_df["date"].max().date()
-        default_end = min(forecast_max, forecast_min + timedelta(days=13))
-        forecast_range_input = st.date_input(
-            "Forecast range",
-            value=(forecast_min, default_end),
-            min_value=forecast_min,
-            max_value=forecast_max,
-            help="Select future dates to view projected net sales"
-        )
-
-        normalized_forecast_range = normalize_range(
-            forecast_range_input,
-            (forecast_min, default_end)
-        )
-        forecast_start = clamp_date(normalized_forecast_range[0], forecast_min, forecast_max)
-        forecast_end = clamp_date(normalized_forecast_range[1], forecast_min, forecast_max)
-        forecast_mask = (
-            (forecast_source_df["date"] >= pd.Timestamp(forecast_start)) &
-            (forecast_source_df["date"] <= pd.Timestamp(forecast_end))
-        )
-        forecast_subset = forecast_source_df[forecast_mask]
-        forecast_view = pd.DataFrame(forecast_subset).sort_values(by="date", ascending=True)
-
-        if forecast_view.empty:
-            st.info("No forecast data for the selected range.")
+        future_min = end_date + timedelta(days=1)
+        future_max = max_date + timedelta(days=365)
+        if future_min > future_max:
+            st.info("Extend your dataset to enable future projections.")
         else:
-            st.dataframe(format_table(forecast_view))
+            default_end = min(future_max, future_min + timedelta(days=13))
+            forecast_range_input = st.date_input(
+                "Forecast range",
+                value=(future_min, default_end),
+                min_value=future_min,
+                max_value=future_max,
+                help="Select future dates to view projected net sales"
+            )
+
+            normalized_forecast_range = normalize_range(
+                forecast_range_input,
+                (future_min, default_end)
+            )
+            forecast_start = clamp_date(normalized_forecast_range[0], future_min, future_max)
+            forecast_end = clamp_date(normalized_forecast_range[1], future_min, future_max)
+
+            forecast_dates = pd.date_range(start=forecast_start, end=forecast_end, freq="D")
+            forecast_rows = []
+
+            for ts in forecast_dates:
+                target_ts = cast(pd.Timestamp, pd.Timestamp(ts))
+                candidate = target_ts - pd.DateOffset(years=1)
+                if candidate < history_index[0]:
+                    source_idx = 0
+                elif candidate > history_index[-1]:
+                    source_idx = len(history_index) - 1
+                else:
+                    source_idx = history_index.get_indexer([candidate], method="nearest")[0]
+
+                source_ts_raw = history_dates_list[source_idx]
+                source_timestamp = pd.Timestamp(source_ts_raw)
+                base_value = history_series.iloc[source_idx]
+                projected = base_value * yoy_multiplier
+
+                forecast_rows.append(
+                    {
+                        "date": target_ts,
+                        "weekday": target_ts.strftime("%a"),
+                        "netsales": projected,
+                        "studio": selected_studio,
+                        "source_date": source_timestamp.date()
+                    }
+                )
+
+            forecast_view = pd.DataFrame(forecast_rows)
+            if forecast_view.empty:
+                st.info("No forecast data for the selected range.")
+            else:
+                st.dataframe(format_table(forecast_view))
