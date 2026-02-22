@@ -149,7 +149,9 @@ def compute_comparison_dates(
 
 
 st.set_page_config(layout="wide")
-st.title("Jungle Studio Daily Dashboard")
+header_html = """<style>.primary-header {font-size: 1.5rem; margin-bottom: 0.35rem;}</style>
+<div class="primary-header">Jungle Studio Dashboard</div>"""
+st.markdown(header_html, unsafe_allow_html=True)
 
 STUDIO_PICKER_CSS = """
 <style>
@@ -251,7 +253,7 @@ with selector_card:
             if mask.any():
                 weekday_index_map[weekday] = history_weekday_series.index[mask]
 
-    st.markdown('<div class="selector-title" style="margin-top:0.6rem;">Time horizon</div>', unsafe_allow_html=True)
+    st.markdown('<div class="selector-title" style="margin-top:0.3rem;">Time horizon</div>', unsafe_allow_html=True)
     horizon = st.radio(
         "Select horizon",
         ["Daily", "Weekly", "Monthly"],
@@ -304,9 +306,14 @@ else:
     comparison_delta_pct = f"{diff_pct:+.1f}%"
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
 
-st.caption(
-    f"Current: {start_date:%b %d, %Y} – {end_date:%b %d, %Y} | "
-    f"Comparison: {comp_start_date:%b %d, %Y} – {comp_end_date:%b %d, %Y}"
+st.markdown(
+    (
+        "<div style='margin-top:0.25rem;margin-bottom:0.15rem;color:#aeb3d1;font-size:0.9rem;'>"
+        f"Current: {start_date:%b %d, %Y} – {end_date:%b %d, %Y} | "
+        f"Comparison: {comp_start_date:%b %d, %Y} – {comp_end_date:%b %d, %Y}"
+        "</div>"
+    ),
+    unsafe_allow_html=True,
 )
 
 # --- Layout ---
