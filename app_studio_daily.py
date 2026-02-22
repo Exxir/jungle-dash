@@ -149,8 +149,10 @@ def compute_comparison_dates(
 
 
 st.set_page_config(layout="wide")
-header_html = """<style>.primary-header {font-size: 1.5rem; margin-bottom: 0.35rem;}</style>
-<div class="primary-header">Jungle Studio Dashboard</div>"""
+header_html = (
+    "<style>.primary-header {font-size: 2rem; font-weight: 700; margin-bottom: 0.2rem;}</style>"
+    "<div class=\"primary-header\">Jungle Studio Dashboard</div>"
+)
 st.markdown(header_html, unsafe_allow_html=True)
 
 STUDIO_PICKER_CSS = """
@@ -253,7 +255,7 @@ with selector_card:
             if mask.any():
                 weekday_index_map[weekday] = history_weekday_series.index[mask]
 
-    st.markdown('<div class="selector-title" style="margin-top:0.3rem;">Time horizon</div>', unsafe_allow_html=True)
+    st.markdown('<div class="selector-title" style="margin-top:0.15rem;">Time horizon</div>', unsafe_allow_html=True)
     horizon = st.radio(
         "Select horizon",
         ["Daily", "Weekly", "Monthly"],
@@ -308,7 +310,7 @@ else:
 
 st.markdown(
     (
-        "<div style='margin-top:0.25rem;margin-bottom:0.15rem;color:#aeb3d1;font-size:0.9rem;'>"
+        "<div style='margin-top:0;margin-bottom:0.05rem;color:#aeb3d1;font-size:0.9rem;'>"
         f"Current: {start_date:%b %d, %Y} – {end_date:%b %d, %Y} | "
         f"Comparison: {comp_start_date:%b %d, %Y} – {comp_end_date:%b %d, %Y}"
         "</div>"
