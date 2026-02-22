@@ -343,22 +343,19 @@ range_sales_display = range_sales
 forecast_values: List[float] = []
 
 if horizon == "Monthly Estimate":
-    partial_span = (actual_end_ts - start_ts).days
-    partial_comp_end = comp_start_ts + timedelta(days=partial_span)
-    if partial_comp_end.value > comp_end_ts.value:
-        partial_comp_end = comp_end_ts
-    comparison_partial = comparison_df[
-        (comparison_df["date"] >= comp_start_ts) &
-        (comparison_df["date"] <= partial_comp_end)
-    ]
-    comparison_partial_total = comparison_partial["netsales"].sum()
-    forecast_multiplier = yoy_multiplier
-    if comparison_partial_total and comparison_partial_total > 0:
-        forecast_multiplier = range_sales / comparison_partial_total
+    month_start_ts = pd.Timestamp(start_date)
+    month_end_ts = pd.Timestamp(end_date)
 
-    if actual_end_ts.value < end_ts.value:
-        future_dates = pd.date_range(start=actual_end_ts + timedelta(days=1), end=end_ts)
-        for ts in future_dates:
+    actual_range = studio_df[
+        (studio_df["date"] >= month_start_ts) &
+        (studio_df["date"] <= actual_end_ts)
+    ]
+    actual_total = actual_range["netsales"].sum()
+
+    remaining_dates = pd.date_range(start=actual_end_ts + timedelta(days=1), end=month_end_ts)
+    if not remaining_dates.empty:
+        forecast_rows = []
+        for ts in remaining_dates:
             target_ts = cast(pd.Timestamp, pd.Timestamp(ts))
             candidate = cast(pd.Timestamp, target_ts - pd.DateOffset(years=1))
             weekday = int(target_ts.dayofweek)
@@ -370,11 +367,13 @@ if horizon == "Monthly Estimate":
                 source_timestamp = closest_timestamp(history_index, candidate)
 
             base_value = float(history_series.loc[source_timestamp])
-            projected = base_value * forecast_multiplier
-            forecast_values.append(float(projected))
+            projected = base_value * yoy_multiplier
+            forecast_rows.append(projected)
 
-    forecast_extra_total = float(sum(forecast_values))
-    range_sales_display = range_sales + forecast_extra_total
+        forecast_extra_total = float(sum(forecast_rows))
+        range_sales_display = actual_total + forecast_extra_total
+        range_sales = actual_total
+
     if (not comparison_df.empty) and comparison_sales:
         diff_pct = ((range_sales_display - comparison_sales) / comparison_sales) * 100
         comparison_delta_pct = f"{diff_pct:+.1f}%"
