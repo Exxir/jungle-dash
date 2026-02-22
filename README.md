@@ -12,6 +12,10 @@ Simple Streamlit app that connects to Supabase to display monthly net sales per 
    ```
 3. Run locally: `streamlit run app.py`
 
+### Database expectations
+
+- Supabase table `public."Jun"` with columns `studio`, `date`, `netsales`, and `weekday` (TEXT)
+
 ## Deploy
 
 Push to `main` (repo linked to Streamlit Cloud) with `.streamlit/config.toml` + secrets configured in the Streamlit dashboard.

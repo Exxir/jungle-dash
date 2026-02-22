@@ -49,7 +49,7 @@ engine = create_engine(
 @st.cache_data(ttl=60)
 def load_data():
     query = text("""
-        SELECT "studio", "date", "netsales"
+        SELECT "studio", "date", "netsales", "weekday"
         FROM public."Jun"
     """)
     with engine.connect() as conn:
