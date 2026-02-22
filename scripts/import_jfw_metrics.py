@@ -100,6 +100,15 @@ def clean_frame(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.rename(columns=column_map)
 
+    existing_columns = set(df.columns)
+    required_columns = set(column_map.values()) - {"est_sales"}
+    missing_required = required_columns - existing_columns
+    if missing_required:
+        raise ValueError(f"Missing expected columns: {', '.join(sorted(missing_required))}")
+
+    if "est_sales" not in df.columns:
+        df["est_sales"] = None
+
     missing = set(column_map.values()) - set(df.columns)
     if missing:
         raise ValueError(f"Missing expected columns: {', '.join(sorted(missing))}")
@@ -116,7 +125,7 @@ def clean_frame(raw_df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].apply(parse_numeric)
 
     for col in INT_COLUMNS:
-        df[col] = df[col].apply(lambda x: int(x) if x is not None else None)
+        df[col] = df[col].apply(lambda x: int(x) if pd.notna(x) else None)
 
     cleaned = df[[
         "id",
@@ -139,6 +148,8 @@ def clean_frame(raw_df: pd.DataFrame) -> pd.DataFrame:
         "net_sales",
         "est_sales",
     ]].dropna(subset=["id", "studio", "date"])
+
+    cleaned = cleaned.astype(object).where(pd.notna(cleaned), None)
 
     return cleaned
 
