@@ -150,8 +150,12 @@ def compute_comparison_dates(
 
 st.set_page_config(layout="wide")
 header_html = (
-    "<style>.primary-header {font-size: 2rem; font-weight: 700; margin-bottom: 0.2rem;}</style>"
+    "<style>"
+    ".primary-header {font-size: 2rem; font-weight: 700; margin: 0 0 0.1rem;}"
+    ".header-divider {border-bottom: 1px solid #1e2438; margin: 0 0 0.5rem;}"
+    "</style>"
     "<div class=\"primary-header\">Jungle Studio Dashboard</div>"
+    "<div class=\"header-divider\"></div>"
 )
 st.markdown(header_html, unsafe_allow_html=True)
 
@@ -175,6 +179,13 @@ div[data-baseweb="tag"] span {
 }
 div[data-baseweb="select"] svg {
     color: #9ea4da;
+}
+.selector-card {
+    background: #0b1124;
+    border: 1px solid #2a3154;
+    border-radius: 18px;
+    padding: 0.8rem 1rem 0.85rem;
+    margin: 0;
 }
 </style>
 """
