@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -161,7 +161,7 @@ comparison_selection_df = studio_df[
     (studio_df["date"] >= comp_start_ts) &
     (studio_df["date"] <= comp_end_ts)
 ]
-comparison_df = pd.DataFrame(comparison_selection_df).copy()
+comparison_df: pd.DataFrame = pd.DataFrame(comparison_selection_df).copy()
 comparison_sales = comparison_df["netsales"].sum() if not comparison_df.empty else 0.0
 comparison_delta_pct = None
 if comparison_df.empty or comparison_sales == 0:
@@ -169,6 +169,29 @@ if comparison_df.empty or comparison_sales == 0:
 else:
     diff_pct = ((range_sales - comparison_sales) / comparison_sales) * 100
     comparison_delta_pct = f"{diff_pct:+.1f}%"
+
+forecast_df: pd.DataFrame = pd.DataFrame(columns=studio_df.columns)
+forecast_days = 7
+if not comparison_df.empty:
+    yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
+    shifted = comparison_df.copy()
+    if not isinstance(shifted, pd.DataFrame):
+        shifted = pd.DataFrame(shifted)
+    shifted["date"] = shifted["date"] + pd.Timedelta(days=365)
+    shifted = shifted[shifted["date"] > end_date]
+    shifted = shifted.sort_values(by="date").head(forecast_days)  # type: ignore[arg-type]
+    if not shifted.empty:
+        shifted["netsales"] = shifted["netsales"] * yoy_multiplier
+        shifted["weekday"] = shifted["date"].dt.strftime("%a")
+        forecast_df = shifted
+forecast_df = cast(pd.DataFrame, forecast_df)
+forecast_label = ""
+forecast_series_label = ""
+if not forecast_df.empty:
+    forecast_start = forecast_df["date"].min().date()
+    forecast_end = forecast_df["date"].max().date()
+    forecast_label = f"{forecast_start:%m-%d-%y} – {forecast_end:%m-%d-%y}"
+    forecast_series_label = f"Forecast {forecast_label}"
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -200,6 +223,13 @@ with tab_tables:
         comparison_view = comparison_df.sort_values("date", ascending=False)
         st.dataframe(format_table(comparison_view))
 
+    st.subheader("Forecast (next 7 days)")
+    if forecast_df.empty:
+        st.info("No forecast available yet.")
+    else:
+        forecast_view = forecast_df.sort_values("date")
+        st.dataframe(format_table(forecast_view))
+
 with tab_chart:
     selected_label = f"{start_date:%m-%d-%y} – {end_date:%m-%d-%y}"
     comparison_label = f"{comp_start_date:%m-%d-%y} – {comp_end_date:%m-%d-%y}"
@@ -209,14 +239,20 @@ with tab_chart:
 
     selected_chart_df = build_chart_data(filtered_df, selected_series_label, selected_label)
     comparison_chart_df = build_chart_data(comparison_df, comparison_series_label, comparison_label)
-    chart_df = pd.concat([selected_chart_df, comparison_chart_df], ignore_index=True)
+    chart_frames = [selected_chart_df, comparison_chart_df]
+    legend_order = [selected_series_label, comparison_series_label]
+
+    if not forecast_df.empty:
+        forecast_chart_df = build_chart_data(forecast_df, forecast_series_label, forecast_label)
+        chart_frames.append(forecast_chart_df)
+        legend_order.append(forecast_series_label)
+
+    chart_df = pd.concat(chart_frames, ignore_index=True)
 
     if chart_df.empty:
         st.info("Not enough data to render the chart.")
     else:
         weekday_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        legend_order = [selected_series_label, comparison_series_label]
-
         chart = (
             alt.Chart(chart_df)
             .mark_line(point=True)
