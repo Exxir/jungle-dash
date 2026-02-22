@@ -82,8 +82,92 @@ def build_chart_data(df: pd.DataFrame, series_label: str, range_label: str) -> p
     return grouped
 
 
+def align_date_to_weekday(target_date: date, weekday_index_map: dict[int, pd.DatetimeIndex], history_index: pd.DatetimeIndex) -> date:
+    if len(history_index) == 0:
+        return target_date
+    target_ts = cast(pd.Timestamp, pd.Timestamp(target_date))
+    weekday = int(target_ts.dayofweek)
+    candidates = weekday_index_map.get(weekday)
+    if candidates is not None and len(candidates) > 0:
+        aligned = closest_timestamp(candidates, target_ts)
+        return aligned.date()
+    aligned = closest_timestamp(history_index, target_ts)
+    return aligned.date()
+
+
+def compute_current_dates(horizon: str, min_date: date, max_date: date) -> Tuple[date, date]:
+    if horizon == "Daily":
+        start = end = max_date
+    elif horizon == "Weekly":
+        end = max_date
+        start = max_date - timedelta(days=6)
+    else:
+        start = max_date.replace(day=1)
+        end = max_date
+    if start < min_date:
+        start = min_date
+    if end < start:
+        end = start
+    return start, end
+
+
+def compute_comparison_dates(
+    horizon: str,
+    current_start: date,
+    current_end: date,
+    min_date: date,
+    max_date: date,
+    weekday_index_map: dict[int, pd.DatetimeIndex],
+    history_index: pd.DatetimeIndex,
+    oldest_month_start: date,
+) -> Tuple[date, date]:
+    period_length = current_end - current_start
+    candidate_start = current_start - timedelta(days=365)
+    candidate_end = current_end - timedelta(days=365)
+
+    if horizon in ("Daily", "Weekly"):
+        comp_start = align_date_to_weekday(candidate_start, weekday_index_map, history_index)
+        comp_end = align_date_to_weekday(candidate_end, weekday_index_map, history_index)
+    else:
+        comp_start = candidate_start
+        comp_end = candidate_start + period_length
+
+    if len(history_index) == 0 or comp_start < min_date:
+        comp_start = oldest_month_start
+        comp_end = min(comp_start + period_length, max_date)
+
+    if comp_end < comp_start:
+        comp_end = comp_start
+
+    return comp_start, comp_end
+
+
 st.set_page_config(layout="wide")
 st.title("Jungle Studio Daily Dashboard")
+
+STUDIO_PICKER_CSS = """
+<style>
+div[data-baseweb="select"] > div {
+    background-color: #0c0f1f;
+    border: 1px solid #2c314f;
+    border-radius: 12px;
+    min-height: 160px;
+}
+div[data-baseweb="tag"] {
+    background-color: #5c5feb;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+}
+div[data-baseweb="tag"] span {
+    color: #fff !important;
+}
+div[data-baseweb="select"] svg {
+    color: #9ea4da;
+}
+</style>
+"""
+st.markdown(STUDIO_PICKER_CSS, unsafe_allow_html=True)
 
 STUDIO_PICKER_CSS = """
 <style>
@@ -142,47 +226,64 @@ df = load_data()
 
 # --- Studio Selector ---
 studios = sorted(df["studio"].unique())
-default_selection = [studios[0]] if studios else []
-studio_selection = st.multiselect(
+default_selection = studios[:1]
+selected_studios = st.multiselect(
     "Studios",
     studios,
     default=default_selection,
-    max_selections=1,
 )
 
-if not studio_selection:
+if not selected_studios:
     st.info("Select at least one studio to continue.")
     st.stop()
 
-selected_studio = studio_selection[0]
+selection_label = ", ".join(selected_studios)
 
-studio_df = df[df["studio"] == selected_studio].copy()
+studio_df = df[df["studio"].isin(selected_studios)].copy()
+
+if studio_df.empty:
+    st.warning("No data available for the selected studios.")
+    st.stop()
+
+studio_df = studio_df.sort_values("date")  # type: ignore[arg-type]
 
 min_date = studio_df["date"].min().date()
 max_date = studio_df["date"].max().date()
+oldest_month_start = min_date.replace(day=1)
 
-default_start = max(max_date - timedelta(days=13), min_date)
+history_series = studio_df.groupby("date")["netsales"].sum().sort_index()
+history_index: pd.DatetimeIndex = pd.DatetimeIndex(history_series.index)
+weekday_index_map = {}
+if len(history_index) > 0:
+    history_weekday_series = pd.Series(history_index, index=history_index).dt.weekday
+    for weekday in range(7):
+        mask = history_weekday_series == weekday
+        if mask.any():
+            weekday_index_map[weekday] = history_weekday_series.index[mask]
 
-range_input_col, comparison_input_col = st.columns(2)
+st.markdown("### Time Horizon")
+horizon = st.radio(
+    "Select horizon",
+    ["Daily", "Weekly", "Monthly"],
+    horizontal=True,
+)
 
-with range_input_col:
-    selected_range = st.date_input(
-        "Current",
-        value=(default_start, max_date),
-        min_value=min_date,
-        max_value=max_date,
-        help="Choose start/end dates to sum net sales"
-    )
+start_date, end_date = compute_current_dates(horizon, min_date, max_date)
+comp_start_date, comp_end_date = compute_comparison_dates(
+    horizon,
+    start_date,
+    end_date,
+    min_date,
+    max_date,
+    weekday_index_map,
+    history_index,
+    oldest_month_start,
+)
 
-range_tuple = normalize_range(selected_range, (default_start, max_date))
-start_date = clamp_date(range_tuple[0], min_date, max_date)
-end_date = clamp_date(range_tuple[1], min_date, max_date)
-
-start_ts = cast(pd.Timestamp, pd.Timestamp(start_date))
-end_ts = cast(pd.Timestamp, pd.Timestamp(end_date))
-
-if start_ts > end_ts:
-    start_ts, end_ts = end_ts, start_ts
+start_ts = pd.Timestamp(start_date)
+end_ts = pd.Timestamp(end_date)
+comp_start_ts = pd.Timestamp(comp_start_date)
+comp_end_ts = pd.Timestamp(comp_end_date)
 
 filtered_selection = studio_df[
     (studio_df["date"] >= start_ts) &
@@ -195,31 +296,7 @@ if filtered_df.empty:
     st.stop()
 
 range_sales = filtered_df["netsales"].sum()
-
 range_length_days = max((end_date - start_date).days, 0)
-comparison_last_year = (
-    clamp_date(start_date - timedelta(days=365), min_date, max_date),
-    clamp_date(end_date - timedelta(days=365), min_date, max_date)
-)
-
-with comparison_input_col:
-    comparison_selection = st.date_input(
-        "Comparison",
-        value=comparison_last_year,
-        min_value=min_date,
-        max_value=max_date,
-        help="Pick another range to compare against"
-    )
-
-comparison_tuple = normalize_range(
-    comparison_selection,
-    comparison_last_year
-)
-comp_start_date = clamp_date(comparison_tuple[0], min_date, max_date)
-comp_end_date = clamp_date(comparison_tuple[1], min_date, max_date)
-
-comp_start_ts = pd.Timestamp(comp_start_date)
-comp_end_ts = pd.Timestamp(comp_end_date)
 
 comparison_selection_df = studio_df[
     (studio_df["date"] >= comp_start_ts) &
@@ -236,15 +313,10 @@ else:
     comparison_delta_pct = f"{diff_pct:+.1f}%"
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
 
-history_series = studio_df.groupby("date")["netsales"].sum().sort_index()
-history_index: pd.DatetimeIndex = pd.DatetimeIndex(history_series.index)
-weekday_index_map = {}
-if len(history_index) > 0:
-    history_weekday_series = pd.Series(history_index, index=history_index).dt.weekday
-    for weekday in range(7):
-        mask = history_weekday_series == weekday
-        if mask.any():
-            weekday_index_map[weekday] = history_weekday_series.index[mask]
+st.caption(
+    f"Current: {start_date:%b %d, %Y} – {end_date:%b %d, %Y} | "
+    f"Comparison: {comp_start_date:%b %d, %Y} – {comp_end_date:%b %d, %Y}"
+)
 
 # --- Layout ---
 col1, col2 = st.columns([1, 1])
@@ -374,7 +446,7 @@ with tab_forecast:
                         "date": target_ts,
                         "weekday": target_ts.strftime("%a"),
                         "netsales": projected,
-                        "studio": selected_studio,
+                        "studio": selection_label,
                         "source_date": source_timestamp.date()
                     }
                 )
