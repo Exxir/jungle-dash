@@ -1,6 +1,6 @@
 from calendar import monthrange
 from datetime import date, timedelta
-from typing import List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 import altair as alt
 import pandas as pd
@@ -338,6 +338,7 @@ else:
     yoy_multiplier = range_sales / comparison_sales if comparison_sales else 1.0
 
 forecast_extra_total = 0.0
+estimated_rows: List[Dict[str, Any]] = []
 range_sales_display = range_sales
 
 forecast_values: List[float] = []
@@ -371,6 +372,14 @@ if horizon == "Monthly Estimate":
             forecast_rows.append(projected)
 
         forecast_extra_total = float(sum(forecast_rows))
+        estimated_rows = [
+            {
+                "date": date,
+                "netsales": value,
+                "estimated": True,
+            }
+            for date, value in zip(remaining_dates, forecast_rows)
+        ]
         range_sales_display = actual_total + forecast_extra_total
         range_sales = actual_total
 
@@ -408,8 +417,16 @@ tab_current, tab_chart, tab_visits, tab_forecast, tab_occupancy, tab_fw_dashboar
 
 with tab_current:
     st.subheader("Selected Range Details")
-    range_view = filtered_df.sort_values("date", ascending=False)
-    st.dataframe(format_table(range_view))
+    current_table_df = filtered_df.sort_values("date", ascending=False)
+    if estimated_rows:
+        add_df = pd.DataFrame(estimated_rows)
+        current_table_df = pd.concat([current_table_df, add_df], ignore_index=True)
+    st.dataframe(format_table(current_table_df))
+    if horizon == "Monthly Estimate" and forecast_extra_total > 0:
+        st.markdown(
+            f"<div style='color:#f5b342;font-weight:600;margin-top:0.3rem;'>Monthly estimate projection adds ${forecast_extra_total:,.0f} beyond actual MTD.</div>",
+            unsafe_allow_html=True,
+        )
 
     st.subheader("Comparison Range Details")
     if comparison_df.empty:
