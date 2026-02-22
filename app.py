@@ -103,7 +103,7 @@ range_input_col, comparison_input_col = st.columns(2)
 
 with range_input_col:
     selected_range = st.date_input(
-        "Select date range",
+        "Current",
         value=(default_start, max_date),
         min_value=min_date,
         max_value=max_date,
@@ -140,7 +140,7 @@ comparison_last_year = (
 
 with comparison_input_col:
     comparison_selection = st.date_input(
-        "Comparison date range",
+        "Comparison",
         value=comparison_last_year,
         min_value=min_date,
         max_value=max_date,
