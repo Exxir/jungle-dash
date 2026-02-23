@@ -560,7 +560,7 @@ with tab_snap:
         .snap-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.8rem;margin-top:0.5rem;}
         .snap-card {background:#10121a;border:1px solid #2c2f38;border-radius:12px;padding:0.7rem 0.9rem;}
         .snap-card[data-tab-target] {cursor:pointer; position:relative;}
-        .snap-card[data-tab-target]::after {content:""; position:absolute; top:11px; right:14px; width:6px; height:12px; border-right:3px solid #f5c746; border-top:3px solid transparent; border-bottom:3px solid transparent; transform:rotate(45deg); box-shadow:1px 0 0 #f5c746, -1px 0 0 #f5c746;}
+        .snap-card[data-tab-target]::after {content:""; position:absolute; top:9px; right:10px; width:12px; height:12px; background:linear-gradient(45deg, transparent 45%, #f5c746 45%) , linear-gradient(225deg, transparent 45%, #f5c746 45%); background-size:12px 12px; background-repeat:no-repeat; background-position:left top, left bottom; transform:rotate(45deg);}
         .snap-label {font-size:0.9rem;color:#fdfdfd;font-weight:700;letter-spacing:0.05em;}
         .snap-main {display:flex;justify-content:space-between;align-items:center;margin-top:0.15rem;}
         .snap-value {font-size:1.4rem;font-weight:600;color:#f5c746;}
