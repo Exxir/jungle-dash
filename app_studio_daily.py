@@ -406,7 +406,7 @@ st.markdown(
 )
 
 # --- Layout ---
-tab_current, tab_chart, tab_visits, tab_snap, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Sales", "Line Chart", "Visits", "Snap", "Forecast", "Occupancy", "Summary"])
+tab_snap, tab_current, tab_chart, tab_visits, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Snap", "Sales", "Line Chart", "Visits", "Forecast", "Occupancy", "Summary"])
 
 with tab_current:
     col1, col2 = st.columns([1, 1])
