@@ -406,9 +406,9 @@ st.markdown(
 )
 
 # --- Layout ---
-tab_snap, tab_current, tab_chart, tab_visits, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Snap", "Sales", "Line Chart", "Visits", "Forecast", "Occupancy", "Summary"])
+tab_snap, tab_sales, tab_chart, tab_visits, tab_forecast, tab_occupancy, tab_fw_dashboard, tab_sales_money = st.tabs(["Snap", "Sales", "Line Chart", "Visits", "Forecast", "Occupancy", "Summary", "Sales $"])
 
-with tab_current:
+with tab_sales:
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -932,7 +932,7 @@ def render_fw_row(title: str, value: str, subtitle: str, ratio_html: str) -> str
     """
 
 
-with tab_fw_dashboard:
+def render_summary_content():
     st.markdown(
         """
         <style>
@@ -1124,11 +1124,18 @@ with tab_fw_dashboard:
             prev_day = cast(pd.Timestamp, day - pd.DateOffset(years=1))
             prev_day_value = daily_totals.get(prev_day)
             daily_html_parts.append(
-                render_fw_row(
-                    day.strftime("%m/%d/%y"),
-                    format_currency(day_value),
-                    prev_day.strftime("%m/%d/%y"),
-                    ratio_badge(yoy_ratio(day_value, prev_day_value)),
-                )
+            render_fw_row(
+                day.strftime("%m/%d/%y"),
+                format_currency(day_value),
+                prev_day.strftime("%m/%d/%y"),
+                ratio_badge(yoy_ratio(day_value, prev_day_value)),
             )
-        st.markdown("".join(daily_html_parts), unsafe_allow_html=True)
+        )
+    st.markdown("".join(daily_html_parts), unsafe_allow_html=True)
+
+
+with tab_fw_dashboard:
+    render_summary_content()
+
+with tab_sales_money:
+    render_summary_content()
