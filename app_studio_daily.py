@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 import altair as alt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from sqlalchemy import create_engine, text
 
 
@@ -551,6 +552,125 @@ with tab_visits:
         st.info("No comparison data available for visits.")
     else:
         st.dataframe(format_table(comparison_visits))
+
+with tab_snap:
+    st.markdown(
+        """
+        <style>
+        .snap-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.8rem;margin-top:0.5rem;}
+        .snap-card {background:#10121a;border:1px solid #2c2f38;border-radius:12px;padding:0.7rem 0.9rem;}
+        .snap-card[data-tab-target] {cursor:pointer;}
+        .snap-label {font-size:0.9rem;color:#fdfdfd;font-weight:700;letter-spacing:0.05em;}
+        .snap-main {display:flex;justify-content:space-between;align-items:center;margin-top:0.15rem;}
+        .snap-value {font-size:1.4rem;font-weight:600;color:#f5c746;}
+        .snap-delta {font-size:0.9rem;font-weight:600;}
+        .snap-sub {font-size:0.8rem;color:#a8aec6;margin-top:0.25rem;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def fmt_value(value: Optional[float], kind: str) -> str:
+        if value is None:
+            return "—"
+        if kind == "currency":
+            return f"${value:,.0f}"
+        if kind == "percent":
+            return f"{value * 100:.0f}%"
+        if kind == "number2":
+            return f"{value:,.2f}"
+        return f"{value:,.0f}"
+
+    def yoy_delta(current: Optional[float], comparison: Optional[float]) -> Optional[float]:
+        if current is None or comparison in (None, 0):
+            return None
+        return (current / comparison) - 1
+
+    def occ_ratio(df: pd.DataFrame) -> Optional[float]:
+        if df.empty or "total_visits" not in df.columns:
+            return None
+        if {"capacity", "classes"}.issubset(df.columns):
+            denom = (df["capacity"] * df["classes"]).replace({0: pd.NA}).sum()
+        else:
+            denom = 0
+        if denom in (None, 0):
+            return None
+        numer = df["total_visits"].fillna(0).sum()
+        return numer / denom if denom else None
+
+    def ratio_from_columns(df: pd.DataFrame, numer: str, denom: str) -> Optional[float]:
+        num = safe_sum(df, numer)
+        den = safe_sum(df, denom)
+        if num is None or den in (None, 0):
+            return None
+        return num / den
+
+    selected_visits_total = safe_sum(filtered_df, "total_visits") or 0.0
+    comparison_visits_total = safe_sum(comparison_df, "total_visits") or 0.0
+    selected_occ = occ_ratio(filtered_df)
+    comparison_occ = occ_ratio(comparison_df)
+    selected_mat = ratio_from_columns(filtered_df, "mt_visits", "total_visits")
+    comparison_mat = ratio_from_columns(comparison_df, "mt_visits", "total_visits")
+    selected_cp = ratio_from_columns(filtered_df, "cp_visits", "total_visits")
+    comparison_cp = ratio_from_columns(comparison_df, "cp_visits", "total_visits")
+    selected_per_visit = (range_sales_display / selected_visits_total) if selected_visits_total else None
+    comparison_per_visit = (comparison_sales / comparison_visits_total) if comparison_visits_total else None
+    selected_ft = safe_sum(filtered_df, "first_time")
+    comparison_ft = safe_sum(comparison_df, "first_time")
+
+    def snap_card_html(label: str, current: Optional[float], comparison: Optional[float], kind: str, target: Optional[str] = None) -> str:
+        current_str = fmt_value(current, kind)
+        comparison_str = fmt_value(comparison, kind)
+        delta = yoy_delta(current, comparison)
+        if delta is None:
+            delta_str = "<span class='snap-delta'>—</span>"
+        else:
+            color = "#19c37d" if delta >= 0 else "#ff4b4b"
+            delta_str = f"<span class='snap-delta' style='color:{color};'>{delta*100:+.1f}%</span>"
+        target_attr = f"data-tab-target='{target}'" if target else ""
+        return (
+            f"<div class='snap-card' {target_attr}>"
+            f"<div class='snap-label'>{label}</div>"
+            f"<div class='snap-main'><span class='snap-value'>{current_str}</span>{delta_str}</div>"
+            f"<div class='snap-sub'>LP {comparison_str}</div>"
+            f"</div>"
+        )
+
+    cards = [
+        ("Sales", range_sales_display, comparison_sales, "currency", "Current"),
+        ("Occ %", selected_occ, comparison_occ, "percent", "Occupancy"),
+        ("Mat %", selected_mat, comparison_mat, "percent", None),
+        ("$ / Visit", selected_per_visit, comparison_per_visit, "number2", None),
+        ("FT Visit", selected_ft, comparison_ft, "number", None),
+        ("Visits", selected_visits_total, comparison_visits_total, "number", None),
+        ("CP %", selected_cp, comparison_cp, "percent", None),
+    ]
+
+    snap_html = "<div class='snap-grid'>" + "".join(snap_card_html(*card) for card in cards) + "</div>"
+    st.markdown(snap_html, unsafe_allow_html=True)
+
+    components.html(
+        """
+        <script>
+        const cards = window.parent.document.querySelectorAll('div.snap-card[data-tab-target]');
+        cards.forEach(card => {
+            if(card.dataset.bound === 'true') return;
+            card.dataset.bound = 'true';
+            card.addEventListener('click', () => {
+                const target = card.getAttribute('data-tab-target');
+                if(!target) return;
+                const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+                tabs.forEach(btn => {
+                    if(btn.innerText.trim() === target) {
+                        btn.click();
+                    }
+                });
+            });
+        });
+        </script>
+        """,
+        height=0,
+    )
 
 with tab_snap:
     st.markdown(
