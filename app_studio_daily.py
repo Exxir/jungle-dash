@@ -406,24 +406,24 @@ st.markdown(
 )
 
 # --- Layout ---
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.metric(
-        label="Net sales (selected range)",
-        value=f"${range_sales_display:,.0f}"
-    )
-
-with col2:
-    st.metric(
-        label="Comparison net sales",
-        value=f"${comparison_sales:,.0f}",
-        delta=comparison_delta_pct
-    )
-
-tab_current, tab_chart, tab_visits, tab_snap, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Current", "Line Chart", "Visits", "Snap", "Forecast", "Occupancy", "Summary"])
+tab_current, tab_chart, tab_visits, tab_snap, tab_forecast, tab_occupancy, tab_fw_dashboard = st.tabs(["Sales", "Line Chart", "Visits", "Snap", "Forecast", "Occupancy", "Summary"])
 
 with tab_current:
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.metric(
+            label="Net sales (selected range)",
+            value=f"${range_sales_display:,.0f}"
+        )
+
+    with col2:
+        st.metric(
+            label="Comparison net sales",
+            value=f"${comparison_sales:,.0f}",
+            delta=comparison_delta_pct
+        )
+
     st.subheader("Selected Range Details")
     current_table_df = filtered_df.sort_values("date", ascending=False)
     if estimated_rows:
