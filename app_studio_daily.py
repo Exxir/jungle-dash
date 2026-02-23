@@ -560,7 +560,7 @@ with tab_snap:
         .snap-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.8rem;margin-top:0.5rem;}
         .snap-card {background:#10121a;border:1px solid #2c2f38;border-radius:12px;padding:0.7rem 0.9rem;}
         .snap-card[data-tab-target] {cursor:pointer; position:relative;}
-        .snap-card[data-tab-target]::after {content:""; position:absolute; top:9px; right:10px; width:12px; height:12px; background:linear-gradient(45deg, transparent 45%, #f5c746 45%) , linear-gradient(225deg, transparent 45%, #f5c746 45%); background-size:12px 12px; background-repeat:no-repeat; background-position:left top, left bottom; transform:rotate(45deg);}
+        .snap-card[data-tab-target]::after {content:""; position:absolute; top:6px; right:6px; width:20px; height:20px; background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22%3E%3Cpath fill=%22%23f5c746%22 fill-rule=%22evenodd%22 d=%22M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm4.28 10.28a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.25a.75.75 0 0 0 0 1.5h5.69l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3Z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E'); background-size:100%; background-repeat:no-repeat;}
         .snap-label {font-size:0.9rem;color:#fdfdfd;font-weight:700;letter-spacing:0.05em;}
         .snap-main {display:flex;justify-content:space-between;align-items:center;margin-top:0.15rem;}
         .snap-value {font-size:1.4rem;font-weight:600;color:#f5c746;}
