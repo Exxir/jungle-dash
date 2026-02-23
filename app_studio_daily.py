@@ -1124,18 +1124,63 @@ def render_summary_content():
             prev_day = cast(pd.Timestamp, day - pd.DateOffset(years=1))
             prev_day_value = daily_totals.get(prev_day)
             daily_html_parts.append(
-            render_fw_row(
-                day.strftime("%m/%d/%y"),
-                format_currency(day_value),
-                prev_day.strftime("%m/%d/%y"),
-                ratio_badge(yoy_ratio(day_value, prev_day_value)),
+                render_fw_row(
+                    day.strftime("%m/%d/%y"),
+                    format_currency(day_value),
+                    prev_day.strftime("%m/%d/%y"),
+                    ratio_badge(yoy_ratio(day_value, prev_day_value)),
+                )
             )
-        )
-    st.markdown("".join(daily_html_parts), unsafe_allow_html=True)
+        st.markdown("".join(daily_html_parts), unsafe_allow_html=True)
 
 
 with tab_fw_dashboard:
     render_summary_content()
 
 with tab_sales_money:
-    render_summary_content()
+    st.markdown("<div class='fw-section-title'>Daily & Weekly Sales</div>", unsafe_allow_html=True)
+    sales_cols = st.columns(2)
+
+    summary_df = cast(pd.DataFrame, studio_df.copy())
+    summary_df["date"] = pd.to_datetime(summary_df["date"], errors="coerce")
+    summary_df["week_start"] = summary_df["date"].dt.to_period("W-SUN").dt.start_time
+
+    with sales_cols[0]:
+        st.markdown("<div class='fw-section-title'>Daily Sales</div>", unsafe_allow_html=True)
+        daily_totals = summary_df.groupby("date")["netsales"].sum().sort_index(ascending=False)
+        daily_rows = daily_totals.head(6).reset_index()
+        daily_html_parts = []
+        for row in daily_rows.to_dict("records"):
+            day = cast(pd.Timestamp, pd.Timestamp(row["date"]))
+            day_value = float(row["netsales"])
+            prev_day = cast(pd.Timestamp, day - pd.DateOffset(years=1))
+            prev_day_value = daily_totals.get(prev_day)
+            daily_html_parts.append(
+                render_fw_row(
+                    day.strftime("%m/%d/%y"),
+                    format_currency(day_value),
+                    prev_day.strftime("%m/%d/%y"),
+                    ratio_badge(yoy_ratio(day_value, prev_day_value)),
+                )
+            )
+        st.markdown("".join(daily_html_parts), unsafe_allow_html=True)
+
+    with sales_cols[1]:
+        st.markdown("<div class='fw-section-title'>Weekly Sales</div>", unsafe_allow_html=True)
+        weekly_totals = summary_df.groupby("week_start")["netsales"].sum().sort_index(ascending=False)
+        weekly_rows = weekly_totals.head(6).reset_index()
+        weekly_html_parts = []
+        for row in weekly_rows.to_dict("records"):
+            week_start = cast(pd.Timestamp, pd.Timestamp(row["week_start"]))
+            week_value = float(row["netsales"])
+            prev_week = cast(pd.Timestamp, week_start - pd.Timedelta(weeks=52))
+            prev_value = weekly_totals.get(prev_week)
+            weekly_html_parts.append(
+                render_fw_row(
+                    week_start.strftime("%m/%d/%y"),
+                    format_currency(week_value),
+                    prev_week.strftime("%m/%d/%y"),
+                    ratio_badge(yoy_ratio(week_value, prev_value)),
+                )
+            )
+        st.markdown("".join(weekly_html_parts), unsafe_allow_html=True)
